@@ -190,11 +190,19 @@ export async function syncGa4(ownerId: string, siteId: string, days: 7 | 30 | 90
       const pages: Record<string, unknown>[] = []; let expected = 0;
       for (let offset = 0; offset < 10000; offset += 2000) {
         const page = await request({ dimensions: ['date', 'sessionSource', 'sessionMedium'].map(name => ({ name })), metrics: ['sessions', 'screenPageViews'].map(name => ({ name })), limit: '2000', offset: String(offset), orderBys: ['date', 'sessionSource', 'sessionMedium'].map(dimensionName => ({ dimension: { dimensionName } })) });
-        if (typeof page.rowCount !== 'number' || !Number.isSafeInteger(page.rowCount) || page.rowCount < 0 || page.rowCount > 10000) throw new ProductError(422, 'This GA4 report exceeds 10,000 aggregate rows. Choose a shorter period. The previous report is unchanged.', 'ga4_report_too_large');
-        if (offset === 0) expected = page.rowCount; else if (page.rowCount !== expected) throw new ProductError(409, 'GA4 data changed during pagination. Retry the import.', 'ga4_report_changed');
+        const pageRows = page.rows === undefined ? [] : page.rows;
+        if (!Array.isArray(pageRows)) throw new ProductError(502, 'Google Analytics returned invalid report rows.', 'integration_response_invalid');
+        // ProtoJSON may omit the default int32 rowCount=0 and empty repeated rows.
+        // https://developers.google.com/analytics/devguides/reporting/data/v1/rest/v1beta/RunReportResponse
+        // https://protobuf.dev/programming-guides/json/#presence-and-default-values
+        const rowCount = page.rowCount === undefined && pageRows.length === 0 ? 0 : page.rowCount;
+        if (typeof rowCount !== 'number' || !Number.isSafeInteger(rowCount) || rowCount < 0 || rowCount > 2147483647) throw new ProductError(502, 'Google Analytics returned an invalid report row count.', 'integration_response_invalid');
+        if (rowCount > 10000) throw new ProductError(422, 'This GA4 report exceeds 10,000 aggregate rows. Choose a shorter period. The previous report is unchanged.', 'ga4_report_too_large');
+        if (offset === 0) expected = rowCount; else if (rowCount !== expected) throw new ProductError(409, 'GA4 data changed during pagination. Retry the import.', 'ga4_report_changed');
+        if (pageRows.length > 2000 || offset + pageRows.length > rowCount) throw new ProductError(502, 'Google Analytics report row counts did not match.', 'integration_response_invalid');
         pages.push(page);
-        if (offset + array(page.rows).length >= expected) break;
-        if (array(page.rows).length !== 2000) throw new ProductError(502, 'Google Analytics returned an incomplete report page.', 'integration_response_invalid');
+        if (offset + pageRows.length >= expected) break;
+        if (pageRows.length !== 2000) throw new ProductError(502, 'Google Analytics returned an incomplete report page.', 'integration_response_invalid');
       }
       if (pages.reduce((n, p) => n + array(p.rows).length, 0) !== expected) throw new ProductError(502, 'Google Analytics report row counts did not match.', 'integration_response_invalid');
       const totals = await request({ metrics: ['sessions', 'totalUsers', 'screenPageViews'].map(name => ({ name })) });

@@ -58,14 +58,14 @@ npm run build
 | 제공자 | 모델 / 방식 | 서버 비밀 환경 변수 | 검증 상태 |
 | --- | --- | --- | --- |
 | OpenAI API | `gpt-4.1-mini`, Responses API 웹 검색 | `OPENAI_API_KEY` | 실제 호출 기록은 상위 `docs/` 참조 |
-| Google Gemini | `gemini-3.8-flash`, 일반 텍스트 응답 | `GEMINI_API_KEY` | 코드 및 fixture 검증, 실제 API 미검증 |
+| Google Gemini | `gemini-3.8-flash`, 일반 텍스트 응답 | `GEMINI_API_KEY` | Lumen 무료 등급에서 수동 수집과 MCP 예약 수집 각 1/1 완료 |
 | Perplexity | `perplexity/sonar`, `/v1/agent` 웹 검색 | `PERPLEXITY_API_KEY` | 코드 및 fixture 검증, 실제 API 미검증 |
 
-Gemini는 웹 검색을 사용하지 않으며 인용을 제공하지 않습니다. 본문에 URL이 있어도 인용으로 집계하지 않습니다. Gemini 인용률 0은 검색 출처에서 브랜드가 관측되지 않았다는 의미가 아니므로 검색을 사용하는 모델의 인용률과 직접 비교하면 안 됩니다. [Google Search Grounding 약관](https://ai.google.dev/gemini-api/terms#grounding-with-google-search)의 분석 및 저장 제한 때문에 이 기능은 요청하지 않습니다. Gemini 연결에는 운영 용도에 맞는 유료 프로젝트와 출력 보존 정책을 사용하세요.
+Gemini는 웹 검색을 사용하지 않으며 인용을 제공하지 않습니다. 본문에 URL이 있어도 인용으로 집계하지 않습니다. Gemini 인용률 0은 검색 출처에서 브랜드가 관측되지 않았다는 의미가 아니므로 검색을 사용하는 모델의 인용률과 직접 비교하면 안 됩니다. [Google Search Grounding 약관](https://ai.google.dev/gemini-api/terms#grounding-with-google-search)의 분석 및 저장 제한 때문에 이 기능은 요청하지 않습니다. 현재 Lumen 프로젝트는 결제 계정이 연결되지 않은 무료 등급입니다. 공개된 질문으로 연결을 검증했으며, 무료 API의 데이터 처리 조건에 맞는 입력 및 출력 보존 정책을 운영해야 합니다.
 
 Perplexity는 [현재 Agent API 모델 목록](https://docs.perplexity.ai/docs/agent-api/models)의 명시적 Sonar 모델을 사용합니다. 검색 결과 중 답변의 인용 번호와 연결된 항목 또는 제공자의 URL annotation만 인용으로 집계합니다. 단순히 검색된 모든 페이지를 인용으로 간주하지 않습니다.
 
-API 응답은 ChatGPT, Gemini, Perplexity 소비자 앱의 개인화된 결과와 같지 않습니다. 샘플 워크스페이스의 모든 모델 응답은 합성 데이터입니다. 결제와 구독은 활성화하지 않은 제한형 무료 서비스이며, 외부 블로그에 자동 발행하지 않습니다. 정기 분석의 서버 실행기와 MCP 도구는 구현됐지만 실제 주기 호출기 연결이 필요합니다. GA4 OAuth와 집계 import도 구현됐으며 운영자의 Google 설정과 실제 연결 검증이 필요합니다. 모델과 API 확인 근거는 상위 `docs/provider-adapters.md`에 정리했습니다.
+API 응답은 ChatGPT, Gemini, Perplexity 소비자 앱의 개인화된 결과와 같지 않습니다. 샘플 워크스페이스의 모든 모델 응답은 합성 데이터입니다. 결제와 구독은 활성화하지 않은 제한형 무료 서비스이며, 외부 블로그에 자동 발행하지 않습니다. 매시 정각 클라우드 작업의 첫 MCP 호출과, 별도로 브라우저를 닫은 상태의 MCP 예약 Gemini 수집을 검증했습니다. 검증용 질문 일정은 일시 정지했고 매시간 운영 확인 작업은 활성 상태입니다. GA4는 Google OAuth 테스트 앱과 읽기 전용 실제 계정 연결, 속성 조회를 완료했습니다. 집계 import의 운영 검증 결과는 상위 `docs/google-live-connections.md`를 참조하세요. 테스트 앱의 갱신 토큰은 7일 후 재연결이 필요할 수 있습니다. 모델과 API 확인 근거는 상위 `docs/provider-adapters.md`에 정리했습니다.
 
 기본 무료 AI 호출 예약 한도는 계정당 UTC 하루 10회/월 100회, 서비스 전체 하루 50회/월 500회입니다. 분석 답변, 질문 제안, 문서와 보조 채팅이 같은 예산을 쓰며 환경 설정으로 한도를 낮출 수 있습니다. 분석은 질문 수 × 모델 수를 먼저 예약하므로 한 번에 질문 20개를 선택할 수 있어도 남은 예산을 넘으면 실행하지 않습니다. 분석 실행은 하루 20회, 병렬 답변은 run당 2개로 제한합니다. 요청 타임아웃은 45초, 제공자 응답 상한은 1MB, 작업 임대는 120초입니다. 전달 여부가 불확실한 요청은 자동 재전송하거나 예약을 환급하지 않습니다. 호출 수 한도는 금액 상한을 보증하지 않으므로 제공자 예산도 따로 설정해야 합니다.
 

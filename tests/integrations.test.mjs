@@ -164,6 +164,56 @@ test('failed imports retain previous complete snapshot and reject partial/oversi
   globalThis.fetch = async url => Response.json(url === 'https://analyticsadmin.googleapis.com/v1beta/properties/1234' ? { name: 'properties/1234', timeZone: 'Asia/Seoul' } : { rowCount: 50, rows: [] }); await assert.rejects(() => ga4.syncGa4('alice', siteId, 7), { code: 'integration_response_invalid' });
   assert.deepEqual((await ga4.ga4Status('alice', siteId)).report, before);
 });
+test('new GA4 properties import zero aggregates when ProtoJSON omits rowCount and empty rows', async () => {
+  await db.prepare("DELETE FROM quotas WHERE id LIKE 'ga4-import:alice:%'").run();
+  for (const omitRows of [true, false]) {
+    let reports = 0; const ranges = [];
+    globalThis.fetch = async (url, init) => {
+      if (url === 'https://analyticsadmin.googleapis.com/v1beta/properties/1234') return Response.json({ name: 'properties/1234', timeZone: 'Asia/Seoul' });
+      assert.equal(url, 'https://analyticsdata.googleapis.com/v1beta/properties/1234:runReport');
+      const body = JSON.parse(init.body); reports++; ranges.push(body.dateRanges);
+      const result = reportFixture((body.dimensions || []).map(dimension => dimension.name), body.metrics.map(metric => metric.name), [], { timeZone: 'Asia/Seoul' });
+      delete result.rowCount; if (omitRows) delete result.rows;
+      return Response.json(result);
+    };
+    const status = await ga4.syncGa4('alice', siteId, 30);
+    assert.equal(reports, 3); assert.ok(status.lastSyncedAt); assert.equal(status.error, null);
+    assert.deepEqual([status.report.totalSessions, status.report.totalUsers, status.report.totalViews, status.report.aiSessions], [0, 0, 0, 0]);
+    assert.deepEqual(status.report.rows, []); assert.equal(status.report.timeZone, 'Asia/Seoul');
+    assert.ok(ranges.every(range => JSON.stringify(range) === JSON.stringify([{ startDate: status.report.startDate, endDate: status.report.endDate }])));
+    const saved = await db.prepare('SELECT report FROM ga4_connections WHERE site_id=?').bind(siteId).first(); assert.deepEqual(JSON.parse(saved.report), status.report);
+  }
+});
+test('GA4 malformed counts remain invalid and pagination changes cannot overwrite the snapshot', async () => {
+  const before = (await ga4.ga4Status('alice', siteId)).report;
+  const fixtures = [
+    [{ rowCount: null, rows: [] }, 'integration_response_invalid'],
+    [{ rowCount: '0', rows: [] }, 'integration_response_invalid'],
+    [{ rowCount: -1, rows: [] }, 'integration_response_invalid'],
+    [{ rowCount: 1.5, rows: [] }, 'integration_response_invalid'],
+    [{ rowCount: 2147483648, rows: [] }, 'integration_response_invalid'],
+    [{ rows: [{}] }, 'integration_response_invalid'],
+    [{ rowCount: 0, rows: [{}] }, 'integration_response_invalid'],
+    [{ rowCount: 0, rows: {} }, 'integration_response_invalid'],
+    [{ rowCount: 10001, rows: [] }, 'ga4_report_too_large'],
+    [{ rowCount: 2, rows: [{}] }, 'integration_response_invalid'],
+    [{ rowCount: 2001, rows: Array(2001).fill({}) }, 'integration_response_invalid'],
+  ];
+  for (const [page, code] of fixtures) {
+    await db.prepare("DELETE FROM quotas WHERE id LIKE 'ga4-import:alice:%'").run();
+    globalThis.fetch = async url => Response.json(url === 'https://analyticsadmin.googleapis.com/v1beta/properties/1234' ? { name: 'properties/1234', timeZone: 'Asia/Seoul' } : page);
+    await assert.rejects(() => ga4.syncGa4('alice', siteId, 30), { code });
+    assert.deepEqual((await ga4.ga4Status('alice', siteId)).report, before);
+  }
+  await db.prepare("DELETE FROM quotas WHERE id LIKE 'ga4-import:alice:%'").run(); let pages = 0;
+  globalThis.fetch = async (url, init) => {
+    if (url === 'https://analyticsadmin.googleapis.com/v1beta/properties/1234') return Response.json({ name: 'properties/1234', timeZone: 'Asia/Seoul' });
+    assert.equal(JSON.parse(init.body).offset, String(pages * 2000)); pages++;
+    return Response.json(pages === 1 ? { rowCount: 2001, rows: Array(2000).fill({}) } : {});
+  };
+  await assert.rejects(() => ga4.syncGa4('alice', siteId, 30), { code: 'ga4_report_changed' }); assert.equal(pages, 2);
+  assert.deepEqual((await ga4.ga4Status('alice', siteId)).report, before);
+});
 test('GA4 mutation route requires identity and same-origin JSON, status never crosses tenants', async () => {
   const params = { params: Promise.resolve({ siteId, action: 'disconnect' }) };
   globalThis.__integrationHeaders = new Headers(); const none = await route.POST(new Request('https://lumen.test/api/test', { method: 'POST' }), params); assert.equal(none.status, 401);
