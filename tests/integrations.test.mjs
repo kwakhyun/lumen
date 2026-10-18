@@ -214,6 +214,46 @@ test('GA4 malformed counts remain invalid and pagination changes cannot overwrit
   await assert.rejects(() => ga4.syncGa4('alice', siteId, 30), { code: 'ga4_report_changed' }); assert.equal(pages, 2);
   assert.deepEqual((await ga4.ga4Status('alice', siteId)).report, before);
 });
+test('GA4 accepts omitted or empty headers only for a verified completely empty report', () => {
+  const empty = { kind: 'analyticsData#runReport', metadata: { timeZone: 'Asia/Seoul' } };
+  for (const response of [empty, { ...empty, rows: [], rowCount: 0, dimensionHeaders: [], metricHeaders: [] }]) {
+    const report = ga4.mapGa4Report([response], response, response, '2026-09-19', '2026-10-18');
+    assert.deepEqual(report.rows, []); assert.deepEqual([report.totalSessions, report.totalUsers, report.totalViews, report.aiSessions], [0, 0, 0, 0]);
+  }
+  const invalid = [
+    {}, { ...empty, rows: null }, { ...empty, rows: {} }, { ...empty, rows: [{}] },
+    { ...empty, kind: 'other' }, { ...empty, metadata: {} }, { ...empty, metadata: { timeZone: 'Invalid/Zone' } },
+    { ...empty, rowCount: 1 }, { ...empty, rowCount: '0' }, { ...empty, rowCount: null },
+    { ...empty, dimensionHeaders: null }, { ...empty, metricHeaders: null },
+    { ...empty, dimensionHeaders: [{ name: 'sessionSource' }] },
+    { ...empty, metricHeaders: [{ name: 'screenPageViews' }, { name: 'totalUsers' }, { name: 'sessions' }] },
+    { ...empty, metricHeaders: [{ name: 'sessions' }] },
+  ];
+  for (const response of invalid) assert.throws(() => ga4.mapGa4Report([empty], response, empty, '2026-09-19', '2026-10-18'), { code: 'integration_response_invalid' });
+  const populated = reportFixture([], ['screenPageViews', 'totalUsers', 'sessions'], [[[], [4, 3, 2]]], { timeZone: 'Asia/Seoul' });
+  assert.throws(() => ga4.mapGa4Report([empty], populated, empty, '2026-09-19', '2026-10-18'), { code: 'integration_response_invalid' });
+});
+test('GA4 imports the observed headerless totals response and preserves its snapshot on malformed retries', async () => {
+  await db.prepare("DELETE FROM quotas WHERE id LIKE 'ga4-import:alice:%'").run();
+  const empty = { kind: 'analyticsData#runReport', metadata: { timeZone: 'Asia/Seoul' } };
+  let totalsResponse = empty, reports = 0;
+  globalThis.fetch = async (url, init) => {
+    if (url === 'https://analyticsadmin.googleapis.com/v1beta/properties/1234') return Response.json({ name: 'properties/1234', timeZone: 'Asia/Seoul' });
+    assert.equal(url, 'https://analyticsdata.googleapis.com/v1beta/properties/1234:runReport');
+    const body = JSON.parse(init.body); reports++;
+    if (body.dimensions) return Response.json(reportFixture(['date', 'sessionSource', 'sessionMedium'], ['sessions', 'screenPageViews'], [], { timeZone: 'Asia/Seoul' }));
+    return Response.json(body.dimensionFilter ? empty : totalsResponse);
+  };
+  const status = await ga4.syncGa4('alice', siteId, 30);
+  assert.equal(reports, 3); assert.equal(status.error, null); assert.ok(status.lastSyncedAt);
+  assert.deepEqual([status.report.totalSessions, status.report.totalUsers, status.report.totalViews, status.report.aiSessions], [0, 0, 0, 0]);
+  const saved = await db.prepare('SELECT report FROM ga4_connections WHERE site_id=?').bind(siteId).first(); assert.deepEqual(JSON.parse(saved.report), status.report);
+  for (const invalid of [{}, { ...empty, rows: null }, { ...empty, kind: 'other' }, { ...empty, rowCount: 1 }, { ...empty, metadata: { timeZone: 'Invalid/Zone' } }]) {
+    totalsResponse = invalid;
+    await assert.rejects(() => ga4.syncGa4('alice', siteId, 30), { code: 'integration_response_invalid' });
+    const after = await ga4.ga4Status('alice', siteId); assert.deepEqual(after.report, status.report); assert.equal(after.lastSyncedAt, status.lastSyncedAt);
+  }
+});
 test('GA4 mutation route requires identity and same-origin JSON, status never crosses tenants', async () => {
   const params = { params: Promise.resolve({ siteId, action: 'disconnect' }) };
   globalThis.__integrationHeaders = new Headers(); const none = await route.POST(new Request('https://lumen.test/api/test', { method: 'POST' }), params); assert.equal(none.status, 401);

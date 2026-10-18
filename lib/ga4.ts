@@ -142,7 +142,20 @@ export function ga4DateRange(timeZone: unknown, days: 7 | 30 | 90, now = Date.no
 function number(value: unknown): number { const parsed = typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value) ? Number(value) : NaN; if (!Number.isFinite(parsed) || parsed < 0) throw new ProductError(502, 'Google Analytics returned an invalid metric.', 'integration_response_invalid'); return parsed; }
 function values(row: Record<string, unknown>, field: string): string[] { return array(row[field]).map(item => typeof item.value === 'string' ? item.value : ''); }
 function verifyHeaders(data: Record<string, unknown>, dimensions: string[], metrics: string[]) {
-  if (JSON.stringify(array(data.dimensionHeaders).map(x => x.name)) !== JSON.stringify(dimensions) || JSON.stringify(array(data.metricHeaders).map(x => x.name)) !== JSON.stringify(metrics)) {
+  const rowsValid = data.rows === undefined || Array.isArray(data.rows);
+  const emptyRows = data.rows === undefined || Array.isArray(data.rows) && data.rows.length === 0;
+  const emptyCount = data.rowCount === undefined || data.rowCount === 0;
+  let allowEmptyHeaders = false;
+  // Observed on a new property's empty aggregate report: kind and metadata remain,
+  // but rows, rowCount and both header arrays may be omitted. Never infer zero from {}.
+  if (emptyRows && emptyCount && data.kind === 'analyticsData#runReport') {
+    try { reportingCalendar(record(data.metadata).timeZone); allowEmptyHeaders = true; } catch { /* Fail closed through the schema diagnostic below. */ }
+  }
+  const matches = (value: unknown, expected: string[]) => {
+    if (value === undefined || Array.isArray(value) && value.length === 0) return expected.length === 0 || allowEmptyHeaders;
+    return Array.isArray(value) && JSON.stringify(array(value).map(item => item.name)) === JSON.stringify(expected);
+  };
+  if (!rowsValid || emptyRows && !emptyCount || data.kind !== undefined && data.kind !== 'analyticsData#runReport' || !matches(data.dimensionHeaders, dimensions) || !matches(data.metricHeaders, metrics)) {
     // Schema diagnostics contain only fixed labels and booleans. Never log response
     // bodies, metric values, property/user identifiers, request headers or tokens.
     const known = new Set(['date', 'sessionSource', 'sessionMedium', 'sessions', 'totalUsers', 'screenPageViews']);
