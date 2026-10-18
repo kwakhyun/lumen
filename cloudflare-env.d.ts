@@ -6,5 +6,8 @@ declare namespace Cloudflare {
     GEMINI_API_KEY?: string;
     PERPLEXITY_API_KEY?: string;
     LUMEN_AUTOMATION_SECRET?: string;
+    LUMEN_OPERATOR_USER_ID?: string;
+    LUMEN_PROVIDER_MODE?: string;
+    GOOGLE_OAUTH_MODE?: string;
   }
 }

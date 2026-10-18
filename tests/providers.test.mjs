@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // Contract fixtures only. This file never loads env files, opens sockets, or calls provider APIs.
-globalThis.__providerFixtureEnv = {};
+globalThis.__providerFixtureEnv = {LUMEN_PROVIDER_MODE:'paid_enabled'};
 registerHooks({ resolve(specifier, context, next) {
   if (specifier === 'cloudflare:workers') return { url: 'data:text/javascript,export const env=globalThis.__providerFixtureEnv;', shortCircuit: true };
   if (specifier.startsWith('.') && context.parentURL?.startsWith('file:')) {
@@ -136,4 +136,22 @@ test('bounded response parsing handles split Korean UTF-8 and sanitizes broken b
   const broken = new ReadableStream({ start(controller) { controller.error(new Error('private credentials in upstream exception')); } });
   await assert.rejects(() => readProviderJson(new Response(broken), 'Fixture'), error => error.code === 'invalid_provider_response' && !error.message.includes('credentials'));
   await assert.rejects(() => readProviderJson(new Response(Uint8Array.of(0xff)), 'Fixture'), { code: 'invalid_provider_response' });
+});
+
+test('free mode is fail-closed even with paid keys and Gemini failure never falls back', async () => {
+  const {askProvider,providerStatuses,defaultGenerationModel}=await import('../lib/providers.ts');
+  const e=globalThis.__providerFixtureEnv; e.OPENAI_API_KEY='fixture';e.PERPLEXITY_API_KEY='fixture';e.GEMINI_API_KEY='fixture';
+  try {
+    for(const mode of [undefined,'free_only','typo']){
+      e.LUMEN_PROVIDER_MODE=mode;
+      assert.equal(defaultGenerationModel(),GEMINI_MODEL);
+      assert.equal(providerStatuses().find(p=>p.id==='openai').available,false);
+      await assert.rejects(()=>askOpenAI('test'),{code:'paid_provider_disabled'});
+      await assert.rejects(()=>askPerplexity('test'),{code:'paid_provider_disabled'});
+      await assert.rejects(()=>askProvider('gpt-4.1-mini','test'),{code:'paid_provider_disabled'});
+    }
+    let calls=0;
+    globalThis.fetch=async(url,init)=>{calls++;assert.match(url,/generativelanguage.googleapis.com/);const body=JSON.parse(init.body);assert.equal(body.generationConfig.responseMimeType,'application/json');assert.equal(body.generationConfig.maxOutputTokens,1800);return new Response('limited',{status:429});};
+    await assert.rejects(()=>askProvider(GEMINI_MODEL,'test',{json:true,maxTokens:1800}),{code:'provider_error'});assert.equal(calls,1);
+  } finally {e.LUMEN_PROVIDER_MODE='paid_enabled';delete e.OPENAI_API_KEY;delete e.PERPLEXITY_API_KEY;delete e.GEMINI_API_KEY;globalThis.fetch=noNetwork;}
 });

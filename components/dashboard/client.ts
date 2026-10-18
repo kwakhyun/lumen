@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 
 export type RequestError = Error & { code?: string };
 const errorCopy: Record<string, string> = {
+  eligibility_required: "AI 이용 조건을 먼저 확인해 주세요. 페이지를 새로고침하면 확인 안내를 볼 수 있어요.",
+  schedule_expired: "종료 시각이 지난 일정이에요. 앞으로의 시각으로 변경하거나 종료 시각을 지워 주세요.",
   ai_usage_exhausted: "무료 AI 사용량을 모두 사용했어요. 사용량 화면에서 다음 초기화 시간을 확인해 주세요.",
   provider_not_configured: "이 AI 모델은 아직 연결되지 않았어요. 연결 화면에서 상태를 확인해 주세요.",
   integration_unconfigured: "연결에 필요한 서버 설정이 아직 준비되지 않았어요.",

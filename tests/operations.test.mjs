@@ -14,7 +14,7 @@ registerHooks({resolve(specifier,context,next){
   if(specifier.startsWith('.')&&context.parentURL?.startsWith('file:')){const base=fileURLToPath(new URL(specifier,context.parentURL));if(existsSync(base+'.ts'))return {url:pathToFileURL(base+'.ts').href,shortCircuit:true};}
   return next(specifier,context);
 }});
-globalThis.__opsEnv={OPENAI_API_KEY:'fixture-only'};globalThis.__opsHeaders=new Headers();
+globalThis.__opsEnv={OPENAI_API_KEY:'fixture-only',LUMEN_PROVIDER_MODE:'paid_enabled'};globalThis.__opsHeaders=new Headers();
 const {nextOccurrence,isValidTimeZone}=await import('../lib/automation-time.ts');
 const ops=await import('../lib/operations-server.ts');
 const {tickDueSchedules,enqueueManualSchedule}=await import('../lib/automation-runner.ts');
@@ -101,4 +101,54 @@ test('legacy queued runs must reserve the current shared free budget before disp
 test('idempotency replay cannot alter models, questions or tenant and never double-reserves',async()=>{
  const w=await workspace('idempotency'),site=await ownedSite(w.id,w.owner),id=crypto.randomUUID();const first=await createRun(site,{mode:'live',models:['gpt-4.1-mini']},{idempotencyKey:id});const replay=await createRun(site,{mode:'live',models:['gpt-4.1-mini']},{idempotencyKey:id});assert.equal(replay.id,first.id);assert.equal((await getUsageStatus(w.owner)).daily.used,1);
  await assert.rejects(()=>createRun(site,{mode:'live',models:['perplexity/sonar']},{idempotencyKey:id}),e=>e.code==='idempotency_conflict');await assert.rejects(()=>createRun(site,{mode:'live',models:['gpt-4.1-mini'],promptIds:[crypto.randomUUID()]},{idempotencyKey:id}),e=>e.code==='idempotency_conflict');const other=await workspace('other-idempotency');await assert.rejects(()=>createRun({...site,id:other.id,ownerId:other.owner},{mode:'live',models:['gpt-4.1-mini']},{idempotencyKey:id}),e=>e.code==='idempotency_conflict');
+});
+
+test('schedule end times validate ISO instants, round-trip UTC and reject expired activation',async()=>{
+ const w=await workspace('ends-validation');
+ for(const endsAt of ['tomorrow','2026-10-18T10:00:00','2026-02-31T10:00:00Z'])assert.equal(ops.scheduleInput.safeParse({siteId:w.id,name:'Invalid',frequency:'daily',timezone:'UTC',hour:1,minute:0,models:['gpt-4.1-mini'],endsAt}).success,false);
+ const end=new Date(Date.now()+7*86400000).toISOString(),s=await schedule(w,{endsAt:end});assert.equal(s.endsAt,end);
+ const preserved=await ops.updateSchedule(w.owner,{siteId:w.id,id:s.id,name:'Renamed'});assert.equal(preserved.endsAt,end);
+ const offset=new Date(Date.now()+2*86400000).toISOString().replace('Z','+00:00');const changed=await ops.updateSchedule(w.owner,{siteId:w.id,id:s.id,endsAt:offset});assert.equal(changed.endsAt,new Date(offset).toISOString());
+ assert.equal((await ops.updateSchedule(w.owner,{siteId:w.id,id:s.id,endsAt:null})).endsAt,null);
+ const past=new Date(Date.now()-1).toISOString();await assert.rejects(()=>schedule(w,{endsAt:past}),e=>e.code==='schedule_expired');
+ const disabled=await schedule(w,{enabled:false,endsAt:past});await assert.rejects(()=>ops.updateSchedule(w.owner,{siteId:w.id,id:disabled.id,enabled:true}),e=>e.code==='schedule_expired');
+ await assert.rejects(()=>enqueueManualSchedule(w.owner,w.id,disabled.id),e=>e.code==='schedule_expired');
+ await ops.deleteSchedule(w.owner,w.id,s.id);
+});
+test('exact end boundary disables only owned schedules without queuing or reserving calls',async()=>{
+ const w=await workspace('ends-boundary'),other=await workspace('ends-other-owner'),s=await schedule(w),foreign=await schedule(other);const at=Date.now();
+ for(const id of [s.id,foreign.id])await db.prepare('UPDATE collection_schedules SET ends_at=?,next_run_at=? WHERE id=?').bind(at,at-1,id).run();
+ const before=fetchCalls,realNow=Date.now;Date.now=()=>at;
+ try{const r=await tickDueSchedules({ownerId:w.owner});assert.equal(r.queued,0);assert.equal(r.continuation,false);await assert.rejects(()=>enqueueManualSchedule(w.owner,w.id,s.id),e=>e.code==='schedule_expired');}finally{Date.now=realNow;}
+ assert.equal(fetchCalls,before);assert.equal((await getUsageStatus(w.owner)).daily.used,0);assert.equal((await single('SELECT enabled,last_status FROM collection_schedules WHERE id=?',s.id)).enabled,0);assert.equal((await single('SELECT enabled FROM collection_schedules WHERE id=?',foreign.id)).enabled,1);
+ await tickDueSchedules({ownerId:w.owner});const state=await ops.getOperationsState(w.owner,w.id);assert.equal(state.health.enabledSchedules,0);assert.equal(state.audit.filter(a=>a.action==='schedule_expired').length,1);
+ await ops.deleteSchedule(other.owner,other.id,foreign.id);
+});
+test('expired queued retries cancel immediately even before their retry delay and reserve nothing',async()=>{
+ const w=await workspace('ends-retry'),s=await schedule(w),e=await enqueueManualSchedule(w.owner,w.id,s.id);await db.prepare("UPDATE scheduled_executions SET status='running',next_attempt_at=?,error_code='run_in_progress' WHERE id=?").bind(Date.now()+3600000,e.id).run();await db.prepare('UPDATE collection_schedules SET ends_at=? WHERE id=?').bind(Date.now()-1,s.id).run();
+ const before=fetchCalls,r=await tickDueSchedules({ownerId:w.owner});assert.equal(r.processed,1);assert.equal(r.continuation,false);assert.equal(fetchCalls,before);assert.equal((await getUsageStatus(w.owner)).daily.used,0);
+ const saved=await single('SELECT status,error_code,lease_token,lease_until,next_attempt_at FROM scheduled_executions WHERE id=?',e.id);assert.deepEqual(saved,{status:'cancelled',error_code:'schedule_expired',lease_token:null,lease_until:0,next_attempt_at:0});assert.equal((await ops.getOperationsState(w.owner,w.id)).alerts.length,0);
+});
+test('expiry respects active execution and provider leases then closes an abandoned manifest without dispatch',async()=>{
+ const w=await workspace('ends-lease'),s=await schedule(w),e=await enqueueManualSchedule(w.owner,w.id,s.id),site=await ownedSite(w.id,w.owner);await createRun(site,{mode:'live',models:['gpt-4.1-mini']},{idempotencyKey:e.id});
+ await db.prepare("UPDATE scheduled_executions SET status='running',lease_token='existing-worker',lease_until=? WHERE id=?").bind(Date.now()+120000,e.id).run();await db.prepare("UPDATE runs SET status='running',lease_token='existing-provider',lease_until=? WHERE id=?").bind(Date.now()+120000,e.id).run();await db.prepare('UPDATE collection_schedules SET ends_at=? WHERE id=?').bind(Date.now()-1,s.id).run();const before=fetchCalls;
+ assert.equal((await tickDueSchedules({ownerId:w.owner})).processed,0);assert.equal((await single('SELECT status FROM scheduled_executions WHERE id=?',e.id)).status,'running');
+ await db.prepare('UPDATE scheduled_executions SET lease_until=0 WHERE id=?').bind(e.id).run();assert.equal((await tickDueSchedules({ownerId:w.owner})).processed,0);assert.equal((await single('SELECT status FROM runs WHERE id=?',e.id)).status,'running');
+ await db.prepare('UPDATE runs SET lease_until=0 WHERE id=?').bind(e.id).run();const closed=await tickDueSchedules({ownerId:w.owner});assert.equal(closed.processed,1);assert.equal(closed.continuation,false);assert.equal(fetchCalls,before);assert.equal((await single('SELECT status FROM scheduled_executions WHERE id=?',e.id)).status,'cancelled');assert.equal((await single('SELECT status FROM runs WHERE id=?',e.id)).status,'failed');assert.equal((await getUsageStatus(w.owner)).daily.used,1);
+});
+test('a deadline reached during an in-flight chunk preserves answers and stops the next chunk',async()=>{
+ const w=await workspace('ends-inflight',3),s=await schedule(w,{endsAt:new Date(Date.now()+86400000).toISOString()}),e=await enqueueManualSchedule(w.owner,w.id,s.id);const before=fetchCalls,previous=globalThis.fetch;let begin,finish;const started=new Promise(r=>begin=r),released=new Promise(r=>finish=r);let arrivals=0;
+ globalThis.fetch=async()=>{fetchCalls++;if(++arrivals===2)begin();await released;return fixture();};
+ try{const running=tickDueSchedules({ownerId:w.owner});await started;await db.prepare('UPDATE collection_schedules SET ends_at=? WHERE id=?').bind(Date.now()-1,s.id).run();finish();assert.equal((await running).continuation,true);const next=await tickDueSchedules({ownerId:w.owner});assert.equal(next.continuation,false);assert.equal(fetchCalls-before,2);const run=await single('SELECT status,completed,failed,total FROM runs WHERE id=?',e.id);assert.deepEqual(run,{status:'partial',completed:2,failed:1,total:3});assert.equal((await single('SELECT status,error_code FROM scheduled_executions WHERE id=?',e.id)).error_code,'schedule_expired');assert.equal((await getUsageStatus(w.owner)).daily.used,3);}finally{finish?.();globalThis.fetch=previous;}
+});
+
+test('free-policy and eligibility blocks are curated terminal outcomes with no provider dispatch',async()=>{
+ const previous=globalThis.__opsEnv.LUMEN_PROVIDER_MODE;globalThis.__opsEnv.GEMINI_API_KEY='fixture-only';
+ try{
+  const a=await workspace('policy-block'),b=await workspace('eligibility-block'),sa=await schedule(a),sb=await schedule(b,{models:['gemini-3.8-flash']});await due(sa.id);await due(sb.id);
+  globalThis.__opsEnv.LUMEN_PROVIDER_MODE='free_only';const before=fetchCalls;
+  await assert.rejects(()=>schedule(b,{models:['gemini-3.8-flash']}),e=>e.code==='eligibility_required');
+  for(const [w,code] of [[a,'paid_provider_disabled'],[b,'eligibility_required']]){const r=await tickDueSchedules({ownerId:w.owner});assert.equal(r.blocked,1);assert.equal(r.continuation,false);const state=await ops.getOperationsState(w.owner,w.id);assert.equal(state.executions[0].errorCode,code);assert.equal(state.executions[0].status,'blocked');assert.equal((await getUsageStatus(w.owner)).daily.used,0);}
+  assert.equal(fetchCalls,before);
+ }finally{globalThis.__opsEnv.LUMEN_PROVIDER_MODE=previous;delete globalThis.__opsEnv.GEMINI_API_KEY;}
 });

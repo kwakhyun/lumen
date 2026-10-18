@@ -39,3 +39,4 @@ export const personas = sqliteTable('personas', {id:text('id').primaryKey(),site
 export * from './integrations-schema';
 
 export * from './operations-schema';
+export * from './eligibility-schema';

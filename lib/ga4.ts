@@ -20,7 +20,7 @@ async function liveSite(ownerId: string, siteId: string) { const site = await ow
 export async function ga4Status(ownerId: string, siteId: string): Promise<GA4Status> {
   await ownedSite(siteId, ownerId); const row = await connection(ownerId, siteId);
   let report: GA4Report | null = null; if (row?.report) { try { report = JSON.parse(row.report) as GA4Report; } catch { /* A broken historical snapshot must not expose storage contents. */ } }
-  return { configured: configured(), connected: Boolean(row?.refresh_cipher && row.status === 'connected'), reconnectRequired: row?.status === 'reconnect_required', propertyId: row?.property_id || null, propertyName: row?.property_name || null, lastSyncedAt: row?.last_synced_at || null, error: row?.error || null, report };
+  return { oauthMode: settings().GOOGLE_OAUTH_MODE === 'production' ? 'production' : 'testing', configured: configured(), connected: Boolean(row?.refresh_cipher && row.status === 'connected'), reconnectRequired: row?.status === 'reconnect_required', propertyId: row?.property_id || null, propertyName: row?.property_name || null, lastSyncedAt: row?.last_synced_at || null, error: row?.error || null, report };
 }
 export async function startGa4Connection(ownerId: string, siteId: string): Promise<{ url: string }> {
   await liveSite(ownerId, siteId); requireConfigured(); await checkEncryptionKey(); await quota(ownerId, 'ga4-connect', 10, 1, 3600000);

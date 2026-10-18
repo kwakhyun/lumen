@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { env } from 'cloudflare:workers';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { sites } from '@/db/schema';
@@ -12,7 +13,7 @@ import { tickDueSchedules } from '@/lib/automation-runner';
 const tools = [
   { name: 'lumen_workspaces', description: 'List the authenticated user’s Lumen workspaces and remaining free AI call budget.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false } },
   { name: 'lumen_operations', description: 'Read schedules, execution history, alerts and heartbeat for one owned Lumen workspace.', inputSchema: { type: 'object', properties: { siteId: { type: 'string', format: 'uuid' } }, required: ['siteId'], additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false } },
-  { name: 'lumen_collect_due', description: 'Resume pending collection and execute due schedules for the authenticated user only. Enforces daily/monthly free limits and persistent execution leases. Never creates schedules. If continuation is true, call again after retryAfterSeconds, at most 10 calls in one scheduled task.', inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 2 } }, additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true } },
+  { name: 'lumen_collect_due', description: 'Resume pending collection and execute due schedules for the authenticated user. Only the exact server-configured operator identity can collect across all users; that response contains aggregate counts only. Enforces schedule end times, daily/monthly limits and persistent leases. Never creates schedules. If continuation is true, call again after retryAfterSeconds, at most 10 calls in one scheduled task.', inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 2 } }, additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true } },
 ];
 const rpcInput = z.object({jsonrpc:z.literal('2.0'), id:z.union([z.string().max(200),z.number(),z.null()]).optional(), method:z.string().max(100),params:z.unknown().optional()}).strict();
 const metadata = z.record(z.string(),z.unknown()).optional();
@@ -29,6 +30,7 @@ const rpcError=(id:unknown,code:number,message:string,status=200)=>json({jsonrpc
 export async function POST(request:Request) {
   let id:unknown=null;
   let executingTool=false;
+  let globalCollection=false;
   try {
     // The Site gateway supplies verified headers. Reject browser cross-origin submissions too.
     const origin=request.headers.get('origin');
@@ -65,15 +67,21 @@ export async function POST(request:Request) {
     } else if(call.data.name==='lumen_collect_due') {
       const {limit}=z.object({limit:z.number().int().min(1).max(2).default(1)}).strict().parse(args);
       executingTool=true;
-      result=await tickDueSchedules({ownerId:user.userId,limit});
+      // Only Sites' trusted currentUser identity and server configuration grant this
+      // capability. Arguments, email, request headers and whitespace never widen it.
+      globalCollection=typeof env.LUMEN_OPERATOR_USER_ID==='string'&&env.LUMEN_OPERATOR_USER_ID.length>0&&env.LUMEN_OPERATOR_USER_ID===user.userId;
+      const tick=await tickDueSchedules(globalCollection?{limit}:{ownerId:user.userId,limit});
+      // An operator may advance work but cannot read another tenant's identifiers,
+      // prompts, run data or errors through this endpoint. Keep a positive allowlist.
+      result=globalCollection?{scope:'service',queued:tick.queued,processed:tick.processed,completed:tick.completed,failed:tick.failed,blocked:tick.blocked,continuation:tick.continuation,retryAfterSeconds:tick.retryAfterSeconds,skipped:tick.skipped}:tick;
     } else return rpcError(id,-32602,'Unknown tool.');
     return json({jsonrpc:'2.0',id,result:{content:[{type:'text',text:JSON.stringify(result)}],isError:false}});
   } catch(error) {
     if(error instanceof z.ZodError)return rpcError(id,-32602,'Request parameters are invalid.');
     const code=error instanceof ProductError?error.code:'internal_error';
-    const message=error instanceof ProductError?error.message:'Lumen could not complete this request.';
+    const message=globalCollection?'Lumen could not complete this collection tick.':error instanceof ProductError?error.message:'Lumen could not complete this request.';
     if(error instanceof ProductError&&error.status===401)return rpcError(id,-32001,message,401);
     if(!executingTool)return rpcError(id,error instanceof ProductError?-32600:-32603,message,error instanceof ProductError?error.status:500);
-    return json({jsonrpc:'2.0',id,result:{content:[{type:'text',text:JSON.stringify({error:message,code})}],isError:true}});
+    return json({jsonrpc:'2.0',id,result:{content:[{type:'text',text:JSON.stringify({error:message,code:globalCollection?'collection_error':code})}],isError:true}});
   }
 }

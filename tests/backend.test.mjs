@@ -17,7 +17,7 @@ registerHooks({resolve(specifier,context,next){
 const {computeMetrics,extractMentions,domainMatches,normalizeDomain,csvCell,trafficSource}=await import('../lib/metrics.ts');
 const {parseProviderResponse}=await import('../lib/providers-response.ts');
 const {assertSameOrigin,readJson,siteInput}=await import('../lib/product-validation.ts');
-let mf,route;globalThis.__lumenTestEnv={};globalThis.__lumenTestHeaders=new Headers();
+let mf,route;globalThis.__lumenTestEnv={LUMEN_PROVIDER_MODE:'paid_enabled'};globalThis.__lumenTestHeaders=new Headers();
 const origin='https://lumen.test';
 async function call(method,url,body,user='alice'){
   globalThis.__lumenTestHeaders=new Headers(user?{'oai-authenticated-user-id':user,'oai-authenticated-user-email':`${user}@example.test`}:{});
@@ -141,3 +141,44 @@ test('full CSV export streams beyond the displayed evidence limit',async()=>{
 });
 test('current cohort is re-evaluated from original evidence after brand changes',async()=>{await call('PATCH',`sites/${siteId}`,{name:'Compare',domain:'newbrand.example'});const state=await call('GET',`sites/${siteId}/state`);const answer=state.data.answers.find(a=>a.providerResponseId==='resp_fixture');assert.equal(answer.mentions[0].mentioned,true);assert.equal(answer.mentions[0].domain,'newbrand.example');});
 test('site removal cascades persisted child data',async()=>{const deleted=await call('DELETE',`sites/${siteId}`);assert.equal(deleted.response.status,200);const row=await globalThis.__lumenTestEnv.DB.prepare('SELECT count(*) n FROM prompts WHERE site_id=?').bind(siteId).first();assert.equal(row.n,0);});
+
+test('free-service consent is tenant bound and all generation routes use Gemini without paid fallback',async()=>{
+ const e=globalThis.__lumenTestEnv,previous=globalThis.fetch;e.LUMEN_PROVIDER_MODE='free_only';e.GEMINI_API_KEY='fixture-only';e.OPENAI_API_KEY='fixture-paid-must-not-run';let calls=0;
+ const eligibility=await import('../app/api/eligibility/route.ts');
+ try {
+  const made=await call('POST','sites',{name:'Free Fixture',domain:'free.example'});const id=made.data.site.id;
+  const blocked=await call('POST',`sites/${id}/assistant`,{message:'Explain the metrics'});assert.equal(blocked.data.code,'eligibility_required');assert.equal(calls,0);
+  const before=await e.DB.prepare('SELECT COUNT(*) n FROM ai_usage_reservations').first();
+  const bad=await eligibility.POST(new Request(origin+'/api/eligibility',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({adult:false,korea:true,business:true,understandsDataUse:true})}));assert.equal(bad.status,400);
+  const accepted=await eligibility.POST(new Request(origin+'/api/eligibility',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({adult:true,korea:true,business:true,understandsDataUse:true})}));assert.equal(accepted.status,200);
+  assert.equal((await e.DB.prepare('SELECT COUNT(*) n FROM ai_usage_reservations').first()).n,before.n);
+  globalThis.__lumenTestHeaders=new Headers({'oai-authenticated-user-id':'different','oai-authenticated-user-email':'different@example.test'});assert.equal((await(await eligibility.GET()).json()).eligible,false);
+  globalThis.fetch=async(url,init)=>{calls++;assert.match(url,/^https:\/\/generativelanguage.googleapis.com\//);const body=JSON.parse(init.body);return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:body.generationConfig.responseMimeType?JSON.stringify({prompts:[{text:'Which tools help brands?',topic:'Tools',intent:'comparison'}]}):'Fixture draft based on the supplied evidence.'}]}}]});};
+  for(const [resource,body] of [['prompts/generate',{count:1}],['documents',{kind:'content',topic:'Brand visibility',format:'article'}],['assistant',{message:'Explain the metrics'}]]){
+   const result=await call('POST',`sites/${id}/${resource}`,body);assert.ok([200,201].includes(result.response.status),JSON.stringify(result.data));
+  }
+  assert.equal(calls,3);
+  const paid=await call('POST',`sites/${id}/runs`,{mode:'live',models:['gpt-4.1-mini']});assert.equal(paid.data.code,'paid_provider_disabled');assert.equal(calls,3);
+ } finally {e.LUMEN_PROVIDER_MODE='paid_enabled';delete e.GEMINI_API_KEY;delete e.OPENAI_API_KEY;globalThis.fetch=previous;}
+});
+
+async function expiryFixture({answers=1,endsAt=Date.now()-3600000,linkByRun=false}={}){
+ const db=globalThis.__lumenTestEnv.DB,owner='expiry-'+crypto.randomUUID(),site=crypto.randomUUID(),run=crypto.randomUUID(),schedule=crypto.randomUUID(),execution=linkByRun?crypto.randomUUID():run,at=new Date().toISOString();
+ await db.prepare('INSERT INTO sites(id,owner_id,name,domain,tracking_key,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').bind(site,owner,'Expiry Fixture','expiry.example',crypto.randomUUID(),at,at).run();
+ await db.prepare("INSERT INTO runs(id,site_id,mode,status,models,total,created_at) VALUES(?,?,'live','running',?,?,?)").bind(run,site,'["gemini-3.8-flash"]',answers,at).run();
+ for(let i=0;i<answers;i++)await db.prepare("INSERT INTO answers(id,site_id,run_id,prompt_id,prompt_text,model,provider,mode,status,created_at) VALUES(?,?,?,?,?,'gemini-3.8-flash','Gemini API','live','pending',?)").bind(crypto.randomUUID(),site,run,crypto.randomUUID(),'A persisted scheduled question '+i,at).run();
+ await db.prepare("INSERT INTO collection_schedules(id,owner_id,site_id,name,enabled,frequency,timezone,hour,minute,models,next_run_at,ends_at,created_at,updated_at) VALUES(?,?,?,'Ends at deadline',1,'daily','Asia/Seoul',9,0,?,1,?,?,?)").bind(schedule,owner,site,'["gemini-3.8-flash"]',endsAt,at,at).run();
+ await db.prepare("INSERT INTO scheduled_executions(id,owner_id,site_id,schedule_id,schedule_name,scheduled_for,status,run_id,configuration,created_at,updated_at) VALUES(?,?,?,?,'Ends at deadline',1,'running',?,?,?,?)").bind(execution,owner,site,schedule,linkByRun?run:null,'{"models":["gemini-3.8-flash"],"promptIds":null}',at,at).run();
+ const {acceptEligibility}=await import('../lib/eligibility.ts');await acceptEligibility(owner);return{owner,site,run,schedule,execution};
+}
+test('direct resume of an expired scheduled run rejects both execution links before reserving or dispatching',async()=>{
+ const e=globalThis.__lumenTestEnv,previous=globalThis.fetch;e.LUMEN_PROVIDER_MODE='free_only';e.GEMINI_API_KEY='fixture-only';let calls=0;globalThis.fetch=async()=>{calls++;throw Error('An expired schedule must not dispatch')};
+ try{for(const linkByRun of [false,true]){const f=await expiryFixture({linkByRun});const result=await call('POST',`sites/${f.site}/runs/${f.run}/process`,{},f.owner);assert.equal(result.response.status,409);assert.equal(result.data.code,'schedule_expired');assert.equal((await e.DB.prepare('SELECT count(*) n FROM ai_usage_reservations WHERE owner_id=?').bind(f.owner).first()).n,0);assert.equal((await e.DB.prepare('SELECT status FROM answers WHERE run_id=?').bind(f.run).first()).status,'pending');}assert.equal(calls,0);}
+ finally{e.LUMEN_PROVIDER_MODE='paid_enabled';delete e.GEMINI_API_KEY;globalThis.fetch=previous;}
+});
+test('deadline crossed during a chunk blocks the next dispatch but preserves the in-flight answer',async()=>{
+ const e=globalThis.__lumenTestEnv,previous=globalThis.fetch,realNow=Date.now;const start=realNow();e.LUMEN_PROVIDER_MODE='free_only';e.GEMINI_API_KEY='fixture-only';let calls=0;
+ try{const f=await expiryFixture({answers:2,endsAt:start+2000,linkByRun:true});globalThis.fetch=async(url)=>{assert.match(url,/^https:\/\/generativelanguage.googleapis.com\//);calls++;Date.now=()=>start+3000;return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:'In-flight answer retained after the deadline.'}]}}]});};
+  const result=await call('POST',`sites/${f.site}/runs/${f.run}/process`,{},f.owner);assert.equal(result.response.status,200);assert.equal(calls,1);assert.equal(result.data.run.status,'partial');assert.equal(result.data.run.completed,1);assert.equal(result.data.run.failed,1);assert.equal(result.data.answers.find(a=>a.status==='completed').text,'In-flight answer retained after the deadline.');assert.match(result.data.answers.find(a=>a.status==='failed').error,/종료 시각/);assert.equal((await e.DB.prepare('SELECT units FROM ai_usage_reservations WHERE owner_id=?').bind(f.owner).first()).units,2);
+ }finally{Date.now=realNow;e.LUMEN_PROVIDER_MODE='paid_enabled';delete e.GEMINI_API_KEY;globalThis.fetch=previous;}
+});

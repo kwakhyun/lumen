@@ -37,7 +37,7 @@ export function parseGeminiResponse(value: unknown): ProviderResult {
   };
 }
 
-export async function askGemini(input: string, options: { instructions?: string } = {}): Promise<ProviderResult> {
+export async function askGemini(input: string, options: { instructions?: string; json?: boolean; maxTokens?: number } = {}): Promise<ProviderResult> {
   const key = (env as typeof env & { GEMINI_API_KEY?: string }).GEMINI_API_KEY?.trim();
   if (!key) throw new ProductError(503, 'Gemini API is not configured on this deployment.', 'provider_unavailable');
   let response: Response;
@@ -48,7 +48,7 @@ export async function askGemini(input: string, options: { instructions?: string 
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: input }] }],
         systemInstruction: { parts: [{ text: `${options.instructions || 'Answer clearly and accurately. Do not invent facts.'}\nWeb search is unavailable. Do not imply that you searched or verified current sources. Answer the question directly and acknowledge uncertainty.` }] },
-        generationConfig: { candidateCount: 1, maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: 'low', includeThoughts: false } },
+        generationConfig: { candidateCount: 1, maxOutputTokens: Number.isSafeInteger(options.maxTokens)?Math.max(256,Math.min(4096,options.maxTokens!)):4096, ...(options.json?{responseMimeType:'application/json'}:{}), thinkingConfig: { thinkingLevel: 'low', includeThoughts: false } },
       }),
       signal: AbortSignal.timeout(45000),
       redirect: 'manual', // workerd-compatible; non-2xx responses, including redirects, are rejected below.

@@ -4,6 +4,7 @@ import type { Citation } from './product-types';
 import { ProductError } from './product-validation';
 import { readProviderJson } from './providers-http';
 import { safeHttpUrl } from './metrics';
+import { assertProviderAllowed } from './provider-policy';
 
 // Verified 2026-10-18: https://docs.perplexity.ai/docs/agent-api/models
 // https://docs.perplexity.ai/api-reference/agent-post
@@ -73,6 +74,7 @@ export function parsePerplexityResponse(value: unknown): ProviderResult {
 }
 
 export async function askPerplexity(input: string, options: { instructions?: string } = {}): Promise<ProviderResult> {
+  assertProviderAllowed('perplexity');
   const key = (env as typeof env & { PERPLEXITY_API_KEY?: string }).PERPLEXITY_API_KEY?.trim();
   if (!key) throw new ProductError(503, 'Perplexity API is not configured on this deployment.', 'provider_unavailable');
   let response: Response;

@@ -33,7 +33,7 @@ before(async () => {
   });
   mf = new Miniflare({
     modules: true, compatibilityDate: '2026-05-15', script: bundled.outputFiles[0].text,
-    bindings: { OPENAI_API_KEY: 'fixture-only', GEMINI_API_KEY: 'fixture-only', PERPLEXITY_API_KEY: 'fixture-only' },
+    bindings: { LUMEN_PROVIDER_MODE: 'paid_enabled', OPENAI_API_KEY: 'fixture-only', GEMINI_API_KEY: 'fixture-only', PERPLEXITY_API_KEY: 'fixture-only' },
     outboundService: async request => {
       const url = new URL(request.url); calls.push(url.hostname);
       assert.ok(['api.openai.com', 'generativelanguage.googleapis.com', 'api.perplexity.ai', 'oauth2.googleapis.com'].includes(url.hostname), 'Unexpected destination: no redirect or external network is allowed');

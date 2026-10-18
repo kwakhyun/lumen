@@ -5,7 +5,7 @@ import { csvCell } from "@/lib/metrics";
 import { ArrowDownToLine, ArrowRight, Loader2, X, Inbox } from "lucide-react";
 
 export function Button({ children, className = "", variant = "default", busy = false, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "default" | "primary" | "quiet" | "danger"; busy?: boolean }) {
-  return <button {...props} disabled={props.disabled || busy} className={`d-button d-button-${variant} ${className}`}>{busy ? <Loader2 size={15} className="d-spin" /> : null}{children}</button>;
+  return <button type="button" {...props} disabled={props.disabled || busy} className={`d-button d-button-${variant} ${className}`}>{busy ? <Loader2 size={15} className="d-spin" /> : null}{children}</button>;
 }
 export function Panel({ children, className = "", title, subtitle, action }: { children: ReactNode; className?: string; title?: string; subtitle?: string; action?: ReactNode }) {
   return <section className={`d-panel ${className}`}>{title ? <header className="d-panel-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>{action}</header> : null}{children}</section>;
