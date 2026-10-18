@@ -4,7 +4,7 @@ Lumen provides an owner-authenticated, read-only application backup. This is a p
 
 ## Export contract
 
-`GET /api/backup?siteId=<workspace UUID>` verifies the authenticated owner's workspace before querying data. Every projection independently enforces the same ownership boundary. Unknown parameters, repeated workspace selectors and cross-site browser requests are rejected. Successful responses are JSON attachments with `Cache-Control: private, no-store` and `nosniff`. Errors return the usual `{error, code}` JSON without an attachment.
+`GET /api/backup?siteId=<workspace UUID>` verifies the authenticated owner's workspace before querying data. Every projection independently enforces the same ownership boundary. Unknown parameters, repeated workspace selectors and cross-site browser requests are rejected. Successful responses are JSON attachments with `Cache-Control: private, no-store` and `nosniff`. Errors return the usual `{error, code}` JSON without an attachment. Schema errors may additionally return at most 20 issue codes and structural paths, never offending values or raw schema messages.
 
 The snapshot includes all rows for the selected workspace in these 14 areas, without a date filter:
 
@@ -15,7 +15,7 @@ The snapshot includes all rows for the selected workspace in these 14 areas, wit
 - Collection schedules, execution history, alerts and audit history.
 - GA4 property metadata and the saved aggregate report.
 
-The SQL explicitly selects permitted columns. It never reads API keys, OAuth access/refresh ciphertext, OAuth state/verifier ciphertext, tracking keys, owner identifiers, job leases or quota reservations into the export. The `quotas`, `ai_usage_buckets`, `ai_usage_reservations`, `oauth_states`, `operation_heartbeats` and account-scoped `ai_eligibility` tables are excluded. GA4 authorization scopes and connection status are not exported as renewable access.
+The SQL explicitly selects permitted columns. Historical answer mentions that contain a full brand record are projected to only `name`, `domain`, `mentioned`, `firstPosition`, `rank` and `cited` inside SQL; extra owner, ID and tracking fields never enter the export. The original stored evidence is not rewritten. Invalid metric values still fail the strict schema. It never reads API keys, OAuth access/refresh ciphertext, OAuth state/verifier ciphertext, tracking keys, owner identifiers, job leases or quota reservations into the export. The `quotas`, `ai_usage_buckets`, `ai_usage_reservations`, `oauth_states`, `operation_heartbeats` and account-scoped `ai_eligibility` tables are excluded. GA4 authorization scopes and connection status are not exported as renewable access.
 
 Original questions, answers and documents remain private user content. The format removes stored system credentials; it does not search for or redact secrets that a user may have typed into a question or document. Keep the download private. Nothing uploads it to an external backup service.
 

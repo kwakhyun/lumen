@@ -40,7 +40,7 @@ function visibleMentionText(text:string):string {
 }
 export function extractMentions(text:string,citations:Citation[],brands:{name:string;domain:string}[]):BrandMention[] {
   const visible=visibleMentionText(text);
-  const result=brands.map(brand=>{const pos=firstMention(visible,brand.name,brand.domain);return {...brand,mentioned:pos!==null,firstPosition:pos,rank:null as number|null,cited:citations.some(c=>domainMatches(c.domain,brand.domain))};});
+  const result=brands.map(brand=>{const pos=firstMention(visible,brand.name,brand.domain);return {name:brand.name,domain:brand.domain,mentioned:pos!==null,firstPosition:pos,rank:null as number|null,cited:citations.some(c=>domainMatches(c.domain,brand.domain))};});
   const ordered=result.filter(x=>x.mentioned).sort((a,b)=>a.firstPosition!-b.firstPosition!);
   ordered.forEach((x,i)=>{x.rank=i+1;});return result;
 }

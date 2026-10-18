@@ -37,7 +37,7 @@ before(async()=>{
   await insert('competitors',{id:ids.competitor,site_id:ids.site,name:'Rival',domain:'rival.example',created_at:at});
   await insert('runs',{id:ids.run,site_id:ids.site,mode:'live',status:'completed',models:'["gpt-4.1-mini"]',total:1,completed:1,created_at:at,completed_at:at,lease_token:'secret_run_lease',lease_until:12345});
   await insert('runs',{id:ids.pendingRun,site_id:ids.site,mode:'live',status:'running',models:'["gemini-3.8-flash"]',total:1,created_at:at,lease_token:'secret_running_lease',lease_until:9999999999999});
-  await insert('answers',{id:ids.answer,site_id:ids.site,run_id:ids.run,prompt_id:ids.prompt,prompt_text:'Private question',model:'gpt-4.1-mini',provider:'OpenAI API',mode:'live',status:'completed',text:'Private original answer',created_at:at,completed_at:at});
+  await insert('answers',{id:ids.answer,site_id:ids.site,run_id:ids.run,prompt_id:ids.prompt,prompt_text:'Private question',model:'gpt-4.1-mini',provider:'OpenAI API',mode:'live',status:'completed',text:'Private original answer',mentions:JSON.stringify([{id:ids.site,ownerId:'secret_nested_owner',trackingKey:'secret_nested_tracking',description:'secret_nested_description',createdAt:at,name:'Own brand',domain:'alice.example',mentioned:true,firstPosition:0,rank:1,cited:false},{id:ids.competitor,siteId:ids.site,createdAt:at,name:'Rival',domain:'rival.example',mentioned:false,firstPosition:null,rank:null,cited:false}]),created_at:at,completed_at:at});
   await insert('answers',{id:ids.pendingAnswer,site_id:ids.site,run_id:ids.pendingRun,prompt_id:ids.deletedPrompt,prompt_text:'Historical deleted question',model:'gemini-3.8-flash',provider:'Gemini API',mode:'live',status:'processing',created_at:at});
   await insert('documents',{id:ids.document,site_id:ids.site,kind:'content',title:'Evidence',content:'generation-0',mode:'live',created_at:at});
   await insert('tasks',{id:ids.task,site_id:ids.site,title:'Private task',created_at:at,updated_at:at});
@@ -62,6 +62,20 @@ test('complete owner snapshot explicitly excludes secrets and has verified diges
   const result = await call();assert.equal(result.status,200);assert.match(result.headers.get('Content-Disposition'),/^attachment/);assert.equal(result.headers.get('Cache-Control'),'private, no-store');
   const text=await result.text();assert.doesNotMatch(text,/secret_|private-other-tenant|owner_id|tracking_key|lease_token|refresh_cipher|access_cipher|claim_token|verifier_cipher/);
   exported=await format.validateBackup(JSON.parse(text));assert.equal(Object.keys(exported.tables).length,14);assert.equal(exported.counts.answers,2);assert.equal(exported.tables.answers.find(a=>a.status==='completed').text,'Private original answer');assert.equal((await db.prepare('SELECT count(*) AS n FROM quotas').first()).n,before.n);
+});
+test('legacy full-brand mentions are projected to metric fields without changing historical values',async()=>{
+ const backup=await(await call()).json();const answer=backup.tables.answers.find(a=>a.status==='completed');const mentions=JSON.parse(answer.mentions);
+ assert.deepEqual(mentions,[{name:'Own brand',domain:'alice.example',mentioned:true,firstPosition:0,rank:1,cited:false},{name:'Rival',domain:'rival.example',mentioned:false,firstPosition:null,rank:null,cited:false}]);
+ const stored=JSON.parse((await db.prepare('SELECT mentions FROM answers WHERE id=?').bind(ids.answer).first()).mentions);assert.equal(stored[0].trackingKey,'secret_nested_tracking');
+ const {extractMentions}=await import('../lib/metrics.ts');const future=extractMentions('Own brand',[],[{id:ids.site,ownerId:'secret_future_owner',trackingKey:'secret_future_tracking',name:'Own brand',domain:'alice.example'}]);
+ assert.deepEqual(Object.keys(future[0]).sort(),['name','domain','mentioned','firstPosition','rank','cited'].sort());assert.doesNotMatch(JSON.stringify(future),/secret_|trackingKey|ownerId/);
+ const hostile=structuredClone(backup);hostile.tables.answers.find(a=>a.status==='completed').mentions=JSON.stringify([{...mentions[0],ownerId:'secret_import_injection'}]);await assert.rejects(format.validateBackup(await resign(hostile)),e=>e.code==='backup_invalid');
+});
+test('invalid stored mention values fail with code/path diagnostics only',async()=>{
+ const original=(await db.prepare('SELECT mentions FROM answers WHERE id=?').bind(ids.answer).first()).mentions;
+ try{for(const invalid of ['secret_malformed_json',JSON.stringify(['secret_invalid_scalar']),JSON.stringify([{name:'secret_invalid_value',domain:'alice.example',mentioned:'secret_invalid_boolean',firstPosition:null,rank:null,cited:false,trackingKey:'secret_do_not_return'}])]){await db.prepare('UPDATE answers SET mentions=? WHERE id=?').bind(invalid,ids.answer).run();
+ const response=await call();assert.equal(response.status,400);const error=await response.json();assert.equal(error.code,'backup_invalid');assert.ok(error.issues.some(issue=>issue.path.at(-1)==='mentions'));assert.ok(error.issues.every(issue=>Object.keys(issue).sort().join(',')==='code,path'));assert.doesNotMatch(JSON.stringify(error),/secret_|trackingKey|ownerId/);
+ }}finally{await db.prepare('UPDATE answers SET mentions=? WHERE id=?').bind(original,ids.answer).run();}
 });
 test('snapshot batch sees parent and content from one transaction during concurrent writes',async()=>{
   for(let n=1;n<=5;n++){

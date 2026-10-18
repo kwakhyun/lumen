@@ -13,7 +13,15 @@ export async function exportWorkspaceBackup(ownerId: string, siteId: string) {
   const statements: D1PreparedStatement[] = [];
   for (const name of BACKUP_TABLE_NAMES) {
     const def = BACKUP_TABLES[name], columns = Object.keys(def.schema.shape);
-    const selection = columns.map(column => `t."${column}"`).join(',');
+    // Historical mentions used to spread entire brand records, including owner/tracking
+    // fields. Strip those in SQL before the JSON ever reaches the Worker or download.
+    // Preserve JSON scalar types; malformed/missing required metric fields still fail
+    // the strict envelope schema rather than being silently repaired.
+    const mentionFields = ['name', 'domain', 'mentioned', 'firstPosition', 'rank', 'cited'];
+    const mentionObject = `json_object(${mentionFields.map(field => `'${field}',json(m.value -> '$.${field}')`).join(',')})`;
+    const mentionValid = mentionFields.map(field => `json_type(m.value,'$.${field}') IS NOT NULL`).join(' AND ');
+    const safeMentions = `CASE WHEN json_valid(t.mentions) THEN CASE WHEN json_type(t.mentions)='array' THEN (SELECT json_group_array(CASE WHEN m.type='object' THEN CASE WHEN ${mentionValid} THEN ${mentionObject} ELSE json('null') END ELSE json('null') END) FROM json_each(t.mentions) m) ELSE '[null]' END ELSE '[null]' END`;
+    const selection = columns.map(column => name === 'answers' && column === 'mentions' ? `${safeMentions} AS "mentions"` : `t."${column}"`).join(',');
     const predicate = name === 'sites' ? 't.id=? AND t.owner_id=?' : `t.site_id=? AND EXISTS (SELECT 1 FROM sites s WHERE s.id=t.site_id AND s.owner_id=?)${['collection_schedules','scheduled_executions','operation_alerts','operation_audit','ga4_connections'].includes(name) ? ' AND t.owner_id=(SELECT owner_id FROM sites WHERE id=t.site_id)' : ''}`;
     // JSON array size plus escaped column names overestimates the eventual object size.
     // LIMIT bounds scans; the max+1 sentinel causes a full failure, never truncation.

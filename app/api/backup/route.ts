@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     const backup = await exportWorkspaceBackup(user.userId, siteId);
     return new Response(canonicalJson(backup), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="lumen-backup-${siteId}-${backup.exportedAt.slice(0,10)}.json"`, 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; sandbox" } });
   } catch (error) {
-    if (error instanceof BackupError) return Response.json({ error: error.message, code: error.code }, { status: error.status, headers: { 'Cache-Control': 'private, no-store' } });
+    if (error instanceof BackupError) return Response.json({ error: error.message, code: error.code, ...(error.issues ? { issues: error.issues } : {}) }, { status: error.status, headers: { 'Cache-Control': 'private, no-store' } });
     return errorResponse(error);
   }
 }

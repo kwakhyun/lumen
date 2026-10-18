@@ -12,7 +12,8 @@ export const BACKUP_MIGRATIONS = [
 export class BackupError extends Error {
   code: string;
   status: number;
-  constructor(code: string, message: string, status = 400) { super(message); this.code = code; this.status = status; }
+  issues?: { code: string; path: (string | number)[] }[];
+  constructor(code: string, message: string, status = 400, issues?: { code: string; path: (string | number)[] }[]) { super(message); this.code = code; this.status = status; this.issues = issues; }
 }
 const id = z.string().uuid(), date = z.string().datetime(), nullableDate = date.nullable();
 const str = (max = 2000) => z.string().max(max);
@@ -120,7 +121,8 @@ export function validateRelationships(data: WorkspaceBackup): void {
   // answers.prompt_id intentionally has no FK: deleted prompts retain historical answers.
 }
 export async function validateBackup(input: unknown): Promise<WorkspaceBackup> {
-  const result = backupSchema.safeParse(input); if (!result.success) fail();
+  const result = backupSchema.safeParse(input);
+  if (!result.success) throw new BackupError('backup_invalid', 'Backup data is invalid or incomplete.', 400, result.error.issues.slice(0, 20).map(issue => ({ code: issue.code, path: issue.path }))); 
   const data = result.data as WorkspaceBackup;
   if (canonicalJson(data.schemaMigrations) !== canonicalJson(BACKUP_MIGRATIONS)) throw new BackupError('backup_schema_unsupported', 'Backup schema version is not supported.');
   if (new TextEncoder().encode(canonicalJson(data)).byteLength > BACKUP_MAX_BYTES) throw new BackupError('backup_too_large', 'Backup exceeds the supported byte limit.', 413);
