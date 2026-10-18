@@ -25,7 +25,9 @@ export async function askOpenAI(input:string,options:{search?:boolean;instructio
     ...(options.json?{text:{format:{type:'json_object'}}}:{}),
   };
   let response:Response;
-  try{response=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:`Bearer ${env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(45000),redirect:'error'});}catch(e){throw new ProductError(502,e instanceof Error&&/timeout|abort/i.test(e.name)?'OpenAI request timed out. This answer was not collected.':'OpenAI could not be reached. This answer was not collected.','provider_network_error');}
+  // workerd 1.20260515 rejects redirect:'error' before dispatch. manual preserves
+  // credentials at the original host; the non-2xx guard below rejects every 3xx.
+  try{response=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:`Bearer ${env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(45000),redirect:'manual'});}catch(e){throw new ProductError(502,e instanceof Error&&/timeout|abort/i.test(e.name)?'OpenAI request timed out. This answer was not collected.':'OpenAI could not be reached. This answer was not collected.','provider_network_error');}
   if(!response.ok){await response.body?.cancel();throw new ProductError(response.status===429?429:502,response.status===429?'OpenAI rate or billing limit reached. Check your API project before starting another run.':`OpenAI rejected the request (HTTP ${response.status}). Check the project key, model access and billing.`,'provider_error');}
   const payload=await readProviderJson(response,'OpenAI');
   const state=(payload&&typeof payload==='object'?payload:{}) as {status?:string};

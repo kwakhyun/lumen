@@ -86,7 +86,7 @@ test('Gemini request contract keeps credentials server-side and search disabled'
     const body = JSON.parse(init.body);
     assert.equal(body.tools, undefined); assert.equal(body.contents[0].parts[0].text, 'Original question');
     assert.match(body.systemInstruction.parts[0].text, /Use Korean/); assert.match(body.systemInstruction.parts[0].text, /Web search is unavailable/);
-    assert.ok(init.signal instanceof AbortSignal); assert.equal(init.redirect, 'error');
+    assert.ok(init.signal instanceof AbortSignal); assert.equal(init.redirect, 'manual');
     return Response.json(gemini());
   };
   try { assert.equal((await askGemini('Original question', { instructions: 'Use Korean.' })).providerResponseId, 'gemini_fixture'); }
@@ -99,7 +99,7 @@ test('Perplexity request contract uses the supported Agent endpoint with explici
     const body = JSON.parse(init.body);
     assert.equal(body.model, 'perplexity/sonar'); assert.equal(body.preset, undefined); assert.equal(body.input, 'Original question');
     assert.equal(body.store, false); assert.equal(body.max_steps, 2); assert.equal(body.tools[0].type, 'web_search');
-    assert.match(body.instructions, /Use Korean/); assert.ok(init.signal instanceof AbortSignal); assert.equal(init.redirect, 'error');
+    assert.match(body.instructions, /Use Korean/); assert.ok(init.signal instanceof AbortSignal); assert.equal(init.redirect, 'manual');
     return Response.json(perplexity());
   };
   try { assert.equal((await askPerplexity('Original question', { instructions: 'Use Korean.' })).providerResponseId, 'pplx_fixture'); }
@@ -122,7 +122,7 @@ test('all three adapters cancel oversized streamed bodies before parsing despite
   for (const [ask, key] of [[askOpenAI, 'OPENAI_API_KEY'], [askGemini, 'GEMINI_API_KEY'], [askPerplexity, 'PERPLEXITY_API_KEY']]) {
     globalThis.__providerFixtureEnv[key] = 'fixture-only-key'; let canceled = false, emitted = 0;
     globalThis.fetch = async (_url, init) => {
-      assert.equal(init.redirect, 'error'); assert.ok(init.signal instanceof AbortSignal);
+      assert.equal(init.redirect, 'manual'); assert.ok(init.signal instanceof AbortSignal);
       return new Response(new ReadableStream({ pull(controller) { emitted += 65536; controller.enqueue(new Uint8Array(65536)); }, cancel() { canceled = true; } }), { headers: { 'Content-Length': '1', 'Content-Type': 'application/json' } });
     };
     try { await assert.rejects(() => ask('Question'), { code: 'provider_response_too_large' }); assert.equal(canceled, true); assert.ok(emitted < 2 * 1048576); }

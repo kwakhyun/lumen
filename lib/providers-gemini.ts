@@ -51,7 +51,7 @@ export async function askGemini(input: string, options: { instructions?: string 
         generationConfig: { candidateCount: 1, maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: 'low', includeThoughts: false } },
       }),
       signal: AbortSignal.timeout(45000),
-      redirect: 'error',
+      redirect: 'manual', // workerd-compatible; non-2xx responses, including redirects, are rejected below.
     });
   } catch (error) {
     throw new ProductError(502, error instanceof Error && /timeout|abort/i.test(error.name) ? 'Gemini request timed out. This answer was not collected.' : 'Gemini could not be reached. This answer was not collected.', 'provider_network_error');

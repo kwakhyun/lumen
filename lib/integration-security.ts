@@ -45,7 +45,10 @@ export async function limitedBody(request: Request | Response, maximum = 1048576
 }
 export async function remoteJson(url: string, init: RequestInit, service: string): Promise<Record<string, unknown>> {
   let response: Response;
-  try { response = await fetch(url, { ...init, signal: AbortSignal.timeout(20000), redirect: 'error' }); } catch { throw new ProductError(502, `${service} could not be reached. Retry later.`, 'integration_network_error'); }
+  try { response = await fetch(url, { ...init, signal: AbortSignal.timeout(20000), redirect: 'manual' }); } catch { throw new ProductError(502, `${service} could not be reached. Retry later.`, 'integration_network_error'); }
+  // Reject redirects without forwarding OAuth credentials. Older workerd versions
+  // reject redirect:'error' during Request construction, before any HTTP dispatch.
+  if (response.status >= 300 && response.status < 400) { await response.body?.cancel(); throw new ProductError(502, `${service} returned an unexpected redirect.`, 'integration_upstream_error'); }
   const raw = await limitedBody(response, 8 * 1024 * 1024);
   let data: Record<string, unknown>; try { data = record(JSON.parse(raw)); } catch { throw new ProductError(502, `${service} returned an invalid response.`, 'integration_response_invalid'); }
   if (!response.ok) {

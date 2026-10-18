@@ -87,7 +87,7 @@ export async function askPerplexity(input: string, options: { instructions?: str
         max_output_tokens: 1800, store: false, stream: false,
       }),
       signal: AbortSignal.timeout(45000),
-      redirect: 'error',
+      redirect: 'manual', // workerd-compatible; non-2xx responses, including redirects, are rejected below.
     });
   } catch (error) {
     throw new ProductError(502, error instanceof Error && /timeout|abort/i.test(error.name) ? 'Perplexity request timed out. This answer was not collected.' : 'Perplexity could not be reached. This answer was not collected.', 'provider_network_error');
