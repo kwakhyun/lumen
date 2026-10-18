@@ -102,19 +102,66 @@ test('property selection verifies Google access and rejects cross-tenant request
   const status = await ga4.selectGa4Property('alice', siteId, '1234'); assert.equal(status.propertyId, '1234'); assert.equal(status.propertyName, 'Selected property');
 });
 function reportFixture(dimensions, metrics, rows, metadata = {}) { return { dimensionHeaders: dimensions.map(name => ({ name })), metricHeaders: metrics.map(name => ({ name })), rows: rows.map(([d, m]) => ({ dimensionValues: d.map(value => ({ value })), metricValues: m.map(value => ({ value: String(value) })) })), rowCount: rows.length, metadata }; }
+test('GA4 date ranges exclude property today across UTC/KST midnight, leap years and DST', () => {
+  const cases = [
+    ['UTC', '2026-10-18T23:59:59.999Z', 7, '2026-10-11', '2026-10-17'],
+    ['UTC', '2026-10-19T00:00:00.000Z', 7, '2026-10-12', '2026-10-18'],
+    ['Asia/Seoul', '2026-10-18T14:59:59.999Z', 7, '2026-10-11', '2026-10-17'],
+    ['Asia/Seoul', '2026-10-18T15:00:00.000Z', 7, '2026-10-12', '2026-10-18'],
+    ['Asia/Seoul', '2026-10-18T23:59:59.999Z', 7, '2026-10-12', '2026-10-18'],
+    ['Asia/Seoul', '2026-10-19T00:00:00.000Z', 7, '2026-10-12', '2026-10-18'],
+    ['Asia/Seoul', '2026-10-17T23:00:00.000Z', 7, '2026-10-11', '2026-10-17'],
+    ['Asia/Seoul', '2028-02-29T15:00:00.000Z', 30, '2028-01-31', '2028-02-29'],
+    ['UTC', '2027-01-01T00:00:00.000Z', 90, '2026-10-03', '2026-12-31'],
+    ['America/Los_Angeles', '2026-03-09T07:00:00.000Z', 7, '2026-03-02', '2026-03-08'],
+    ['America/Los_Angeles', '2026-11-02T08:00:00.000Z', 7, '2026-10-26', '2026-11-01'],
+  ];
+  for (const [timeZone, now, days, startDate, endDate] of cases) assert.deepEqual(ga4.ga4DateRange(timeZone, days, Date.parse(now)), { startDate, endDate, timeZone }, `${timeZone} at ${now}`);
+  for (const zone of [undefined, '', 'Invalid/Zone']) assert.throws(() => ga4.ga4DateRange(zone, 7), { code: 'integration_response_invalid' });
+});
 test('GA4 import persists aggregate snapshot, totalUsers uses a separate query and quality flags survive', async () => {
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10); let calls = 0;
-  globalThis.fetch = async (url, init) => { calls++; assert.equal(url, 'https://analyticsdata.googleapis.com/v1beta/properties/1234:runReport'); const body = JSON.parse(init.body); assert.equal(body.dateRanges[0].endDate, yesterday);
+  const yesterday = ga4.ga4DateRange('Asia/Seoul', 7).endDate; let calls = 0;
+  globalThis.fetch = async (url, init) => { calls++; if (url === 'https://analyticsadmin.googleapis.com/v1beta/properties/1234') return Response.json({ name: 'properties/1234', timeZone: 'Asia/Seoul' });
+    assert.equal(url, 'https://analyticsdata.googleapis.com/v1beta/properties/1234:runReport'); const body = JSON.parse(init.body); assert.equal(body.dateRanges[0].endDate, yesterday);
     if (body.dimensions) { assert.deepEqual(body.orderBys[0], { dimension: { dimensionName: 'date' } }); return Response.json(reportFixture(['date', 'sessionSource', 'sessionMedium'], ['sessions', 'screenPageViews'], [[[yesterday.replaceAll('-', ''), 'chatgpt.com', 'referral'], [4, 7]], [[yesterday.replaceAll('-', ''), 'google', 'organic'], [8, 13]]], { subjectToThresholding: true })); }
     if (body.dimensionFilter) return Response.json(reportFixture([], ['sessions'], [[[], [4]]]));
     return Response.json(reportFixture([], ['sessions', 'totalUsers', 'screenPageViews'], [[[], [12, 9, 20]]], { timeZone: 'Asia/Seoul', dataLossFromOtherRow: false })); };
-  const status = await ga4.syncGa4('alice', siteId, 7); assert.equal(calls, 3); assert.equal(status.report.totalUsers, 9); assert.equal(status.report.totalSessions, 12); assert.equal(status.report.aiSessions, 4); assert.equal(status.report.dataQuality.subjectToThresholding, true); assert.equal(status.report.timeZone, 'Asia/Seoul'); assert.equal(status.report.rows[0].users, undefined);
+  const status = await ga4.syncGa4('alice', siteId, 7); assert.equal(calls, 4); assert.equal(status.report.totalUsers, 9); assert.equal(status.report.totalSessions, 12); assert.equal(status.report.aiSessions, 4); assert.equal(status.report.dataQuality.subjectToThresholding, true); assert.equal(status.report.timeZone, 'Asia/Seoul'); assert.equal(status.report.rows[0].users, undefined);
+});
+test('GA4 import pins one absolute range when property midnight passes between report requests', async () => {
+  const realNow = Date.now; let now = Date.parse('2026-10-18T14:59:59.900Z'), reports = 0;
+  await db.prepare('UPDATE ga4_connections SET access_expires=? WHERE site_id=?').bind(253402300799999, siteId).run();
+  Date.now = () => now;
+  try {
+    globalThis.fetch = async (url, init) => {
+      if (url === 'https://analyticsadmin.googleapis.com/v1beta/properties/1234') return Response.json({ name: 'properties/1234', timeZone: 'Asia/Seoul' });
+      assert.equal(url, 'https://analyticsdata.googleapis.com/v1beta/properties/1234:runReport');
+      const body = JSON.parse(init.body); reports++;
+      assert.deepEqual(body.dateRanges, [{ startDate: '2026-10-11', endDate: '2026-10-17' }]);
+      now = Date.parse('2026-10-18T15:00:00.100Z');
+      if (body.dimensions) return Response.json(reportFixture(['date', 'sessionSource', 'sessionMedium'], ['sessions', 'screenPageViews'], [[['20261017', 'chatgpt.com', 'referral'], [4, 7]]], { timeZone: 'Asia/Seoul' }));
+      if (body.dimensionFilter) return Response.json(reportFixture([], ['sessions'], [[[], [4]]], { timeZone: 'Asia/Seoul' }));
+      return Response.json(reportFixture([], ['sessions', 'totalUsers', 'screenPageViews'], [[[], [4, 3, 7]]], { timeZone: 'Asia/Seoul' }));
+    };
+    const status = await ga4.syncGa4('alice', siteId, 7);
+    assert.equal(reports, 3); assert.equal(status.report.startDate, '2026-10-11'); assert.equal(status.report.endDate, '2026-10-17'); assert.equal(status.report.timeZone, 'Asia/Seoul');
+    const saved = await db.prepare('SELECT report FROM ga4_connections WHERE site_id=?').bind(siteId).first(); assert.deepEqual(JSON.parse(saved.report), status.report);
+  } finally { Date.now = realNow; }
+});
+test('missing property timezone or a changed report timezone cannot replace the saved snapshot', async () => {
+  const before = (await ga4.ga4Status('alice', siteId)).report; let reports = 0;
+  globalThis.fetch = async url => { assert.equal(url, 'https://analyticsadmin.googleapis.com/v1beta/properties/1234'); return Response.json({ name: 'properties/1234' }); };
+  await assert.rejects(() => ga4.syncGa4('alice', siteId, 7), { code: 'integration_response_invalid' });
+  assert.deepEqual((await ga4.ga4Status('alice', siteId)).report, before);
+  globalThis.fetch = async url => { if (url === 'https://analyticsadmin.googleapis.com/v1beta/properties/1234') return Response.json({ name: 'properties/1234', timeZone: 'Asia/Seoul' }); reports++; return Response.json({ metadata: { timeZone: 'UTC' }, rowCount: 0, rows: [] }); };
+  await assert.rejects(() => ga4.syncGa4('alice', siteId, 7), { code: 'ga4_report_changed' }); assert.equal(reports, 1);
+  assert.deepEqual((await ga4.ga4Status('alice', siteId)).report, before);
 });
 test('failed imports retain previous complete snapshot and reject partial/oversized data', async () => {
   const before = (await ga4.ga4Status('alice', siteId)).report;
-  globalThis.fetch = async () => Response.json({ rowCount: 10001, rows: [] }); await assert.rejects(() => ga4.syncGa4('alice', siteId, 90), { code: 'ga4_report_too_large' });
+  globalThis.fetch = async url => Response.json(url === 'https://analyticsadmin.googleapis.com/v1beta/properties/1234' ? { name: 'properties/1234', timeZone: 'Asia/Seoul' } : { rowCount: 10001, rows: [] }); await assert.rejects(() => ga4.syncGa4('alice', siteId, 90), { code: 'ga4_report_too_large' });
   assert.deepEqual((await ga4.ga4Status('alice', siteId)).report, before);
-  globalThis.fetch = async () => Response.json({ rowCount: 50, rows: [] }); await assert.rejects(() => ga4.syncGa4('alice', siteId, 7), { code: 'integration_response_invalid' });
+  globalThis.fetch = async url => Response.json(url === 'https://analyticsadmin.googleapis.com/v1beta/properties/1234' ? { name: 'properties/1234', timeZone: 'Asia/Seoul' } : { rowCount: 50, rows: [] }); await assert.rejects(() => ga4.syncGa4('alice', siteId, 7), { code: 'integration_response_invalid' });
   assert.deepEqual((await ga4.ga4Status('alice', siteId)).report, before);
 });
 test('GA4 mutation route requires identity and same-origin JSON, status never crosses tenants', async () => {

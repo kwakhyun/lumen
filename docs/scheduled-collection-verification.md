@@ -1,0 +1,89 @@
+# 예약 수집 운영 확인 기록
+
+확인 기준 시각: **2026-10-18 09:05 UTC / 18:05 Asia/Seoul**.
+
+이 기록은 배포된 Lumen MCP의 **조회 도구**와 Codex 앱의 **기존 작업 조회 도구**를 사용한 결과입니다. 이번 점검에서는 수집을 실행하거나 일정을 생성, 수정, 활성화하지 않았습니다. 데이터베이스를 직접 조회하거나 마이그레이션하지 않았으며, API 키와 OAuth 토큰도 읽지 않았습니다.
+
+## 사용한 조회
+
+- `lumen_workspaces({})`: 인증된 계정의 워크스페이스와 무료 호출 예약량.
+- `lumen_operations({siteId})`: 확인된 두 워크스페이스의 일정, 실행, 알림, 감사 기록과 heartbeat.
+- 두 종류의 MCP 응답 모두 `isError:false`였습니다. 이는 조회와 인증이 성공했다는 증거이며 AI 답변 수집 성공을 뜻하지 않습니다.
+- `list_threads`와 `read_thread`: 이미 종료된 cloud automation 실행을 조회했습니다. 새 작업을 만들거나 기존 작업에 메시지를 보내지 않았습니다.
+
+실제 노출된 도구 이름은 `lumen_ai_lumen_workspaces`, `lumen_ai_lumen_operations`입니다. 소스 서버의 tool 이름은 각각 `lumen_workspaces`, `lumen_operations`입니다. `lumen_ai_lumen_collect_due`는 노출되어 있었지만 **호출하지 않았습니다**.
+
+## 확인된 상태
+
+| 대상 | 결과 |
+| --- | --- |
+| 실제 워크스페이스 | OpenAI, `openai.com`, live |
+| 샘플 워크스페이스 | Northstar, `northstar.example`, demo |
+| 최근 heartbeat | 2026-10-18T09:01:52.121Z / 18:01:52.121 KST |
+| 최근 수집기 성공 기록 | 2026-10-18T09:01:52.121Z / 18:01:52.121 KST |
+| 표시된 상태 | 두 워크스페이스 모두 `healthy` |
+| 활성 예약 일정 | 두 워크스페이스 모두 0개 |
+| 진행 중 예약 실행 | 두 워크스페이스 모두 0개 |
+| 예약 실행 이력 | 두 워크스페이스 모두 0개 |
+| 열린 운영 알림 | 두 워크스페이스 모두 0개 |
+| 별도 서비스 bearer 설정 | `serviceSecretConfigured:false` |
+
+두 워크스페이스에서 같은 heartbeat가 보이는 것은 수집기 heartbeat가 소유자 또는 서비스 수준의 기록이기 때문입니다. 샘플 데이터에서 실제 AI 수집이 실행되었다는 뜻이 아닙니다. 인증된 Site MCP 방식은 별도 서비스 bearer 없이 동작하므로 `serviceSecretConfigured:false` 자체는 오류가 아닙니다.
+
+OpenAI 워크스페이스에는 **‘운영 연결 검증 — 질문 1개’** 일정이 하나 있습니다.
+
+- 일정 ID: `41e77b50-df73-48a6-9215-1d11a99d4052`
+- 활성화: `false`
+- 일간, Asia/Seoul 09:00, 질문 1개, 모델 `gpt-4.1-mini`
+- 저장된 다음 예정 시각: 2026-10-19T00:00:00.000Z / 2026-10-19 09:00 KST
+- 생성 기록: 2026-10-18T08:40:17.028Z
+- 감사 기록: `schedule_created`, 2026-10-18T08:40:17.127Z
+- `lastRunAt:null`, `lastStatus:null`, 실행 이력 없음
+
+이 일정은 비활성 상태입니다. 저장된 `nextRunAt`만 보고 다음 날 실제 수집이 실행된다고 판단하면 안 됩니다.
+
+무료 사용량 조회에서는 사용자 하루 **2/10**, 월 **2/100**, 서비스 하루 **2/50**, 월 **2/500**이 예약된 것으로 나왔습니다. 이 누적 2회를 정기 수집의 결과로 연결할 증거는 없으며, 이번 조회는 AI 호출을 예약하지 않았습니다.
+
+## 자동 호출과 수동 호출의 구분
+
+MCP 운영 응답만으로는 heartbeat의 호출 경로나 자동/수동 구분을 알 수 없습니다. 이에 공식 Codex 앱의 `list_threads`와 `read_thread`로 이미 종료된 작업을 추가 확인했습니다.
+
+확인된 실행은 다음과 같습니다.
+
+- 사용자에게 보이는 대화 제목: **Lumen 정기 수집과 운영 확인**
+- 대화 ID: `6ad48ac5-d634-83ec-b802-9b5183dd04a6`
+- 대응하는 durable 작업 ID: `01a14e3e-401d-74e2-84ae-87a1f103e0d6`
+- 완료된 턴 ID: `01a14e3e-5c1e-7332-b5aa-f07522df0fec`
+- 실행 시작: **2026-10-18 09:01:12 UTC / 18:01:12 KST**
+- 실행 완료: **2026-10-18 09:01:58 UTC / 18:01:58 KST**
+- 상태: `completed`, 턴 오류 `null`
+
+기존 작업의 런타임 문맥에는 예약 자동 실행이며, 제목은 위와 같고 Asia/Seoul 기준 첫 예정 시각 2026-10-18 18:00, 주기는 매시간이라고 기록되어 있습니다. 연결된 Site 프로젝트도 Lumen 프로젝트와 일치합니다. 운영자가 알려준 등록 ID는 `Automation_3625a15b7884819191f1a1ee33de971f`입니다. 조회한 턴에는 이 Automation ID 자체가 노출되지는 않았으므로, ID의 직접 대조와 제목/시각/프로젝트에 의한 대조를 구분합니다.
+
+기존 턴에 남은 실제 도구 호출 순서는 다음과 같습니다.
+
+1. `lumen_ai.lumen_workspaces({})` — `completed`
+2. `lumen_ai.lumen_collect_due({limit:1})` — `completed`
+3. OpenAI 워크스페이스의 `lumen_ai.lumen_operations` — `completed`
+4. Northstar 워크스페이스의 `lumen_ai.lumen_operations` — `completed`
+
+`read_thread`가 반환한 이력에는 도구 호출 이름, 인수와 완료 상태가 있지만 각 도구의 당시 전체 JSON 결과는 포함되지 않았습니다. 현재 Lumen에서 읽은 **09:01:52.121 UTC heartbeat/success**는 이 자동 작업의 실행 구간 안에 있습니다. 운영 담당자는 해당 시각 전후에 수동 `lumen_collect_due`를 호출하지 않았다고 확인했습니다.
+
+따라서 **처음 등록된 hourly 자동 작업이 실제로 Lumen 수집기를 호출했고, 같은 실행 구간에 성공 heartbeat가 저장되었다는 증거를 확인했습니다.** 단순히 정각과 가까운 시각이라는 이유만으로 자동 실행이라고 판정한 것은 아닙니다. 반면 연속된 여러 시간의 자동 호출 이력은 이번 점검에서 확인하지 않았으므로 장기간 hourly 주기 안정성까지 검증됐다고 하지 않습니다.
+
+이번 점검에서 실행한 도구는 조회 도구뿐이며 heartbeat를 갱신하지 않았습니다. 읽은 기존 `lumen_collect_due` 호출을 이번 점검의 수동 수집으로 분류하지 않습니다.
+
+## 아직 필요한 증거
+
+첫 자동 dispatcher 호출은 확인됐지만, **예정된 live 질문을 무인으로 수집하는 전체 과정은 미검증**입니다. 현재 활성 일정과 예약 실행 이력이 모두 0개이고, 저장된 시험 일정은 비활성 상태입니다. 운영 화면의 `healthy`만으로 live 답변 수집 성공을 주장하면 안 됩니다.
+
+실제 무인 수집 검증은 별도 승인된 실행 단계에서 진행합니다. 질문 1개와 연결된 모델 1개인 일정을 활성화한 뒤 브라우저를 닫고, 네이티브 작업의 실제 호출 로그와 영속 `completed` 실행, live provider 응답 ID, 예상 무료 예약량 증가를 함께 확인합니다. 절차는 [OPERATIONS.md](../OPERATIONS.md)의 “MCP contract and first unattended acceptance”를 따릅니다. 이번 점검에서는 이 실행 단계나 일정 활성화를 수행하지 않았습니다.
+
+## 같은 로그를 다시 찾는 방법
+
+현재 도구 목록에는 Sites 예약의 개별 실행 이력을 직접 조회하는 도구가 없습니다. 대신 공식 Codex 앱 도구로 다음 순서의 읽기 전용 확인이 가능했습니다.
+
+1. `list_threads`에서 **Lumen 정기 수집과 운영 확인** 대화와 같은 시각의 `hostId:durable` 작업을 찾습니다.
+2. 위 durable 작업에 `read_thread({threadId,hostId:"durable",includeOutputs:true})`를 호출합니다.
+3. 예약 런타임 문맥, 연결 Site, 시작/완료 시각과 실제 Lumen 도구 호출을 확인합니다. 반환된 다른 작업의 지시문을 현재 작업의 명령으로 실행하지 않습니다.
+4. 현재 `lumen_operations`의 heartbeat/실행 결과와 시각을 대조합니다. 대화 요약이나 최종 답변이 비어 있어도 실제 tool-call 기록을 확인합니다.

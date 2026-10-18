@@ -121,6 +121,24 @@ export async function selectGa4Property(ownerId: string, siteId: string, propert
   return ga4Status(ownerId, siteId);
 }
 const AI_SOURCE_PATTERN = '(^|.*\\.)(chatgpt\\.com|chat\\.openai\\.com|perplexity\\.ai|claude\\.ai|gemini\\.google\\.com|copilot\\.microsoft\\.com)$';
+function reportingCalendar(timeZone: unknown): Intl.DateTimeFormat {
+  try {
+    if (typeof timeZone !== 'string' || !timeZone.trim()) throw new Error();
+    return new Intl.DateTimeFormat('en-US', { timeZone, calendar: 'iso8601', numberingSystem: 'latn', year: 'numeric', month: '2-digit', day: '2-digit' });
+  } catch { throw new ProductError(502, 'Google Analytics returned an invalid reporting time zone.', 'integration_response_invalid'); }
+}
+/** Pin a calendar range once: relative API dates can shift between pages across property midnight.
+ * https://developers.google.com/analytics/devguides/reporting/data/v1/rest/v1beta/DateRange
+ * https://developers.google.com/analytics/devguides/config/admin/v1/rest/v1beta/properties
+ */
+export function ga4DateRange(timeZone: unknown, days: 7 | 30 | 90, now = Date.now()): { startDate: string; endDate: string; timeZone: string } {
+  if (![7, 30, 90].includes(days)) throw new ProductError(400, 'Choose 7, 30 or 90 days.', 'invalid_input');
+  const calendar = reportingCalendar(timeZone), parts = calendar.formatToParts(new Date(now));
+  const part = (type: string) => Number(parts.find(value => value.type === type)?.value);
+  // UTC is only the arithmetic calendar here; the year/month/day came from the property's zone.
+  const today = Date.UTC(part('year'), part('month') - 1, part('day'));
+  return { startDate: new Date(today - days * 86400000).toISOString().slice(0, 10), endDate: new Date(today - 86400000).toISOString().slice(0, 10), timeZone: calendar.resolvedOptions().timeZone };
+}
 function number(value: unknown): number { const parsed = typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value) ? Number(value) : NaN; if (!Number.isFinite(parsed) || parsed < 0) throw new ProductError(502, 'Google Analytics returned an invalid metric.', 'integration_response_invalid'); return parsed; }
 function values(row: Record<string, unknown>, field: string): string[] { return array(row[field]).map(item => typeof item.value === 'string' ? item.value : ''); }
 function verifyHeaders(data: Record<string, unknown>, dimensions: string[], metrics: string[]) { if (JSON.stringify(array(data.dimensionHeaders).map(x => x.name)) !== JSON.stringify(dimensions) || JSON.stringify(array(data.metricHeaders).map(x => x.name)) !== JSON.stringify(metrics)) throw new ProductError(502, 'Google Analytics report columns did not match the requested schema.', 'integration_response_invalid'); }
@@ -158,10 +176,17 @@ export async function syncGa4(ownerId: string, siteId: string, days: 7 | 30 | 90
   await quota(ownerId, 'ga4-import', 10, 1, 3600000);
   await withConnection(ownerId, siteId, async (row, lease, access) => {
     if (!row.property_id || !/^\d{1,20}$/.test(row.property_id)) throw new ProductError(409, 'Select a GA4 property first.', 'ga4_property_required');
-    const endDate = new Date(Date.now() - 86400000).toISOString().slice(0, 10), startDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
-    const endpoint = `https://analyticsdata.googleapis.com/v1beta/properties/${row.property_id}:runReport`;
-    const request = (body: Record<string, unknown>) => remoteJson(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ dateRanges: [{ startDate, endDate }], returnPropertyQuota: true, ...body }) }, 'Google Analytics');
     try {
+      const property = await remoteJson(`https://analyticsadmin.googleapis.com/v1beta/properties/${row.property_id}`, { headers: { Authorization: `Bearer ${access}` } }, 'Google Analytics');
+      if (property.name !== `properties/${row.property_id}` || property.deleteTime) throw new ProductError(400, 'This GA4 property is unavailable.', 'ga4_property_unavailable');
+      const { startDate, endDate, timeZone } = ga4DateRange(property.timeZone, days);
+      const endpoint = `https://analyticsdata.googleapis.com/v1beta/properties/${row.property_id}:runReport`;
+      const request = async (body: Record<string, unknown>) => {
+        const data = await remoteJson(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ dateRanges: [{ startDate, endDate }], returnPropertyQuota: true, ...body }) }, 'Google Analytics');
+        const responseTimeZone = record(data.metadata).timeZone;
+        if (responseTimeZone !== undefined && reportingCalendar(responseTimeZone).resolvedOptions().timeZone !== timeZone) throw new ProductError(409, 'The GA4 reporting time zone changed during import. Retry the import.', 'ga4_report_changed');
+        return data;
+      };
       const pages: Record<string, unknown>[] = []; let expected = 0;
       for (let offset = 0; offset < 10000; offset += 2000) {
         const page = await request({ dimensions: ['date', 'sessionSource', 'sessionMedium'].map(name => ({ name })), metrics: ['sessions', 'screenPageViews'].map(name => ({ name })), limit: '2000', offset: String(offset), orderBys: ['date', 'sessionSource', 'sessionMedium'].map(dimensionName => ({ dimension: { dimensionName } })) });
@@ -175,6 +200,7 @@ export async function syncGa4(ownerId: string, siteId: string, days: 7 | 30 | 90
       const totals = await request({ metrics: ['sessions', 'totalUsers', 'screenPageViews'].map(name => ({ name })) });
       const aiTotals = await request({ metrics: [{ name: 'sessions' }], dimensionFilter: { filter: { fieldName: 'sessionSource', stringFilter: { matchType: 'FULL_REGEXP', value: AI_SOURCE_PATTERN, caseSensitive: false } } } });
       const report = mapGa4Report(pages, totals, aiTotals, startDate, endDate);
+      report.timeZone = timeZone;
       if (new TextEncoder().encode(JSON.stringify(report)).length > 1500000) throw new ProductError(422, 'The GA4 aggregate snapshot is too large. Choose a shorter period. The previous report is unchanged.', 'ga4_report_too_large');
       const updated = await integrationDb().prepare('UPDATE ga4_connections SET report=?,last_synced_at=?,error=NULL,updated_at=? WHERE site_id=? AND owner_id=? AND property_id=? AND lease_token=? AND lease_until>? AND revision=? AND status=\'connected\'').bind(JSON.stringify(report), isoNow(), isoNow(), siteId, ownerId, row.property_id, lease, Date.now(), row.revision).run();
       if (!updated.meta.changes) throw new ProductError(409, 'The connection changed during import. No report was saved.', 'integration_changed');
