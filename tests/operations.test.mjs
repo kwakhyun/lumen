@@ -152,3 +152,15 @@ test('free-policy and eligibility blocks are curated terminal outcomes with no p
   assert.equal(fetchCalls,before);
  }finally{globalThis.__opsEnv.LUMEN_PROVIDER_MODE=previous;delete globalThis.__opsEnv.GEMINI_API_KEY;}
 });
+
+test('normal expiry after a long dispatcher gap never creates a stalled alert',async()=>{
+ const w=await workspace('expired-stale'),s=await schedule(w),e=await enqueueManualSchedule(w.owner,w.id,s.id),past=Date.now()-3600000;
+ await db.prepare('UPDATE collection_schedules SET ends_at=? WHERE id=?').bind(past,s.id).run();await db.prepare('UPDATE scheduled_executions SET updated_at=? WHERE id=?').bind(new Date(past).toISOString(),e.id).run();const before=fetchCalls;
+ const result=await tickDueSchedules({ownerId:w.owner});assert.equal(result.continuation,false);assert.equal(fetchCalls,before);const state=await ops.getOperationsState(w.owner,w.id);assert.equal(state.executions[0].status,'cancelled');assert.equal(state.executions[0].errorCode,'schedule_expired');assert.equal(state.alerts.length,0);assert.equal(state.health.openAlerts,0);assert.equal(state.health.status,'healthy');
+});
+test('expiry resolves an existing stalled alert without hiding unrelated operational issues',async()=>{
+ const w=await workspace('expired-existing-alert'),s=await schedule(w),e=await enqueueManualSchedule(w.owner,w.id,s.id),past=Date.now()-3600000;
+ await ops.alert(w.owner,w.id,e.id,'execution_stalled','Delayed','Waiting');await ops.alert(w.owner,w.id,e.id,'provider_fixture_issue','Provider issue','Keep this unresolved');
+ await db.prepare("UPDATE operation_alerts SET status='acknowledged' WHERE owner_id=? AND code='execution_stalled'").bind(w.owner).run();await db.prepare('UPDATE collection_schedules SET ends_at=? WHERE id=?').bind(past,s.id).run();await db.prepare('UPDATE scheduled_executions SET updated_at=? WHERE id=?').bind(new Date(past).toISOString(),e.id).run();const before=fetchCalls;
+ await tickDueSchedules({ownerId:w.owner});assert.equal(fetchCalls,before);const state=await ops.getOperationsState(w.owner,w.id);assert.equal(state.executions[0].status,'cancelled');assert.equal(state.alerts.find(a=>a.code==='execution_stalled').status,'resolved');assert.equal(state.alerts.find(a=>a.code==='provider_fixture_issue').status,'open');assert.equal(state.health.openAlerts,1);
+});
