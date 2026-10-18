@@ -141,7 +141,22 @@ export function ga4DateRange(timeZone: unknown, days: 7 | 30 | 90, now = Date.no
 }
 function number(value: unknown): number { const parsed = typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value) ? Number(value) : NaN; if (!Number.isFinite(parsed) || parsed < 0) throw new ProductError(502, 'Google Analytics returned an invalid metric.', 'integration_response_invalid'); return parsed; }
 function values(row: Record<string, unknown>, field: string): string[] { return array(row[field]).map(item => typeof item.value === 'string' ? item.value : ''); }
-function verifyHeaders(data: Record<string, unknown>, dimensions: string[], metrics: string[]) { if (JSON.stringify(array(data.dimensionHeaders).map(x => x.name)) !== JSON.stringify(dimensions) || JSON.stringify(array(data.metricHeaders).map(x => x.name)) !== JSON.stringify(metrics)) throw new ProductError(502, 'Google Analytics report columns did not match the requested schema.', 'integration_response_invalid'); }
+function verifyHeaders(data: Record<string, unknown>, dimensions: string[], metrics: string[]) {
+  if (JSON.stringify(array(data.dimensionHeaders).map(x => x.name)) !== JSON.stringify(dimensions) || JSON.stringify(array(data.metricHeaders).map(x => x.name)) !== JSON.stringify(metrics)) {
+    // Schema diagnostics contain only fixed labels and booleans. Never log response
+    // bodies, metric values, property/user identifiers, request headers or tokens.
+    const known = new Set(['date', 'sessionSource', 'sessionMedium', 'sessions', 'totalUsers', 'screenPageViews']);
+    const headers = (value: unknown) => ({ type: value === undefined ? 'absent' : Array.isArray(value) ? 'array' : 'invalid', names: array(value).slice(0, 10).map(item => typeof item.name === 'string' && known.has(item.name) ? item.name : 'other') });
+    console.error('ga4_report_schema', JSON.stringify({
+      stage: dimensions.length ? 'detail' : metrics.length > 1 ? 'totals' : 'aiTotals',
+      dimensions: headers(data.dimensionHeaders), metrics: headers(data.metricHeaders),
+      rows: data.rows === undefined ? 'absent' : Array.isArray(data.rows) ? data.rows.length ? 'nonempty' : 'empty' : 'invalid',
+      rowCount: data.rowCount === undefined ? 'absent' : data.rowCount === 0 ? 'zero' : typeof data.rowCount === 'number' && Number.isSafeInteger(data.rowCount) && data.rowCount > 0 ? 'positive' : 'invalid',
+      kindValid: data.kind === 'analyticsData#runReport', timeZonePresent: typeof record(data.metadata).timeZone === 'string',
+    }));
+    throw new ProductError(502, 'Google Analytics report columns did not match the requested schema.', 'integration_response_invalid');
+  }
+}
 /** No visitor IDs, page URLs or event rows. Totals come from separate aggregate queries, never summed users. */
 export function mapGa4Report(pages: Record<string, unknown>[], totals: Record<string, unknown>, aiTotals: Record<string, unknown>, startDate: string, endDate: string): GA4Report {
   const rows: GA4Report['rows'] = [];
