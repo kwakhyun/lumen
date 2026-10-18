@@ -15,5 +15,5 @@ export default async function DashboardPage({
   const path = `/dashboard${route.path?.length ? `/${route.path.map(encodeURIComponent).join("/")}` : ""}`;
   const returnTo = `${path}${query.demo === "1" ? "?demo=1" : ""}`;
   const user = await requireChatGPTUser(returnTo);
-  return <Dashboard user={{ name: user.displayName, email: user.email }} />;
+  return <Dashboard user={{ name: user.displayName, email: user.email }} initialSection={route.path?.[0] || "overview"} />;
 }

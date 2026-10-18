@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+/* eslint-disable @next/next/no-html-link-for-pages -- Full document navigation avoids the deployed Vinext RSC transition failure. */
+
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { ArrowDownToLine, ArrowRight, ArrowUpRight, BarChart3, BookOpen, Bot, CalendarDays, Check, CheckCircle2, ChevronRight, CircleHelp, Compass, Copy, ExternalLink, FileText, Filter, Globe2, Info, LayoutDashboard, ListChecks, Loader2, LogOut, Menu, MessageCircle, MoreHorizontal, PanelTop, Pencil, Pin, Play, Plus, Radio, RefreshCw, Search, Send, Settings2, ShieldCheck, Sparkles, Target, Trash2, TrendingUp, Users, WandSparkles, X } from "lucide-react";
 import { computeMetrics } from "@/lib/metrics";
@@ -45,8 +45,8 @@ function MetricCard({ label, value, suffix, note, hint, icon: Icon, series = [] 
 type FormKind = "site" | "prompt" | "competitor" | "content" | "report" | "task" | "persona";
 type EditItem = Site | Prompt | Competitor | Task | Persona;
 
-export default function Dashboard({ user }: { user: { name: string; email: string } }) {
-  const router = useRouter(); const pathname = usePathname(); const segment = pathname.split("/").filter(Boolean)[1] || "overview"; const section = pageMeta[segment] ? segment : "overview";
+export default function Dashboard({ user, initialSection = "overview" }: { user: { name: string; email: string }; initialSection?: string }) {
+  const section = pageMeta[initialSection] ? initialSection : "overview";
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null); const [state, setState] = useState<SiteState | null>(null); const [siteId, setSiteId] = useState(""); const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [toast, setToast] = useState("");
   const [mobileNav, setMobileNav] = useState(false); const [commandOpen, setCommandOpen] = useState(false); const [commandText, setCommandText] = useState(""); const [form, setForm] = useState<FormKind | null>(null); const [editItem, setEditItem] = useState<EditItem | null>(null); const [detail, setDetail] = useState<Prompt | null>(null); const [document, setDocument] = useState<SavedDocument | null>(null); const [model, setModel] = useState("all"); const [period, setPeriod] = useState("30"); const [running, setRunning] = useState(false); const [confirmDelete, setConfirmDelete] = useState<{ type: string; id: string; title: string } | null>(null);
   const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false);
@@ -79,14 +79,14 @@ export default function Dashboard({ user }: { user: { name: string; email: strin
   async function removeConfirmed() { if (!confirmDelete) return; setBusy(true); setError(""); try { if (confirmDelete.type === "site") { await api(`/api/sites/${siteId}`, "DELETE"); const data = await refreshBootstrap(); setState(null); chooseSite(data.sites[0]?.id || ""); } else { await mutate(`/api/sites/${siteId}/${confirmDelete.type}/${confirmDelete.id}`, "DELETE"); } setConfirmDelete(null); flash("삭제했어요"); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }
   const handleTaskStatus = async (task: Task, status: string) => { try { await mutate(`/api/sites/${siteId}/tasks/${task.id}`, "PATCH", { status }, "작업 상태를 변경했어요"); } catch {} };
   const togglePrompt = async (prompt: Prompt, values: Record<string, boolean>) => { try { await mutate(`/api/sites/${siteId}/prompts/${prompt.id}`, "PATCH", values); } catch {} };
-  function navigate(id: string) { setMobileNav(false); router.push(sectionPath(id)); setCommandOpen(false); setCommandText(""); }
+  function navigate(id: string) { setMobileNav(false); window.location.assign(sectionPath(id)); setCommandOpen(false); setCommandText(""); }
 
   return <div className="d-shell">
     <div className={`d-nav-overlay ${mobileNav ? "open" : ""}`} onClick={() => setMobileNav(false)} />
-    <aside ref={sidebarRef} className={`d-sidebar ${mobileNav ? "open" : ""}`} aria-label="주 탐색" inert={isMobile && !mobileNav} aria-hidden={isMobile && !mobileNav ? true : undefined}><Link href="/" className="d-brand"><LumenMark />lumen<sup>WORKSPACE</sup></Link>
+    <aside ref={sidebarRef} className={`d-sidebar ${mobileNav ? "open" : ""}`} aria-label="주 탐색" inert={isMobile && !mobileNav} aria-hidden={isMobile && !mobileNav ? true : undefined}><a href="/" className="d-brand"><LumenMark />lumen<sup>WORKSPACE</sup></a>
       <div className="d-site-switch"><span className="d-site-avatar">{state?.site.name.slice(0, 1).toUpperCase() || "L"}</span><div style={{ minWidth: 0, flex: 1 }}><label className="d-screen-reader" htmlFor="site-switcher">워크스페이스 선택</label><select id="site-switcher" value={siteId} onChange={e => { if (e.target.value === "new") openForm("site"); else chooseSite(e.target.value); }}><option value="" disabled>워크스페이스 선택</option>{bootstrap?.sites.map(s => <option key={s.id} value={s.id}>{s.name}{s.mode === "demo" ? " (샘플)" : ""}</option>)}<option value="new">+ 새 워크스페이스</option></select><small>{state?.site.mode === "demo" ? "샘플 워크스페이스" : "브랜드 워크스페이스"}</small></div></div>
       <button className="d-search-trigger" onClick={() => setCommandOpen(true)}><Search size={13} />빠른 검색<kbd>⌘ K</kbd></button>
-      <nav className="d-nav">{navigation.map(group => <div className="d-nav-group" key={group.group}><div className="d-nav-label">{group.group}</div>{group.items.map(item => <Link key={item.id} href={sectionPath(item.id)} onClick={() => setMobileNav(false)} className={`d-nav-link ${section === item.id ? "active" : ""}`} aria-current={section === item.id ? "page" : undefined}><item.icon />{item.title}{item.id === "assistant" && <span className="d-nav-tag">AI</span>}</Link>)}</div>)}</nav>
+      <nav className="d-nav">{navigation.map(group => <div className="d-nav-group" key={group.group}><div className="d-nav-label">{group.group}</div>{group.items.map(item => <a key={item.id} href={sectionPath(item.id)} onClick={() => setMobileNav(false)} className={`d-nav-link ${section === item.id ? "active" : ""}`} aria-current={section === item.id ? "page" : undefined}><item.icon />{item.title}{item.id === "assistant" && <span className="d-nav-tag">AI</span>}</a>)}</div>)}</nav>
       <div className="d-sidebar-bottom"><div className="d-workspace-note"><strong>발견에서, 다음 행동까지.</strong><p>브랜드를 더 잘 설명하는 콘텐츠가<br />더 좋은 답변을 만듭니다.</p><button onClick={() => navigate("assistant")}>어시스턴트와 살펴보기<ArrowUpRight size={12} /></button></div><div className="d-profile"><span className="d-profile-avatar">{user.name.slice(0, 1).toUpperCase()}</span><div><strong>{user.name}</strong><small>개인 워크스페이스</small></div><a href="/signout-with-chatgpt?return_to=%2F" aria-label="로그아웃"><LogOut size={13} /></a></div></div>
     </aside>
     <div className="d-main"><header className="d-topbar"><button className="d-icon-button d-mobile-menu" onClick={() => setMobileNav(true)} aria-label="메뉴 열기"><Menu size={19} /></button><span>워크스페이스</span><ChevronRight size={11} /><span className="d-topbar-current">{navTitle}</span><div className="d-topbar-end"><span className="d-live-indicator"><span className="d-live-dot" />{state?.site.mode === "demo" ? "샘플 데이터" : "워크스페이스 연결됨"}</span><button className="d-icon-button" aria-label="워크스페이스 새로고침" onClick={() => refresh().catch(e => setError(e.message))}><RefreshCw size={15} /></button><button className="d-icon-button" aria-label="도움말" onClick={() => { navigate("assistant"); }}><CircleHelp size={16} /></button><span className="d-profile-avatar">{user.name.slice(0, 1).toUpperCase()}</span></div></header>
