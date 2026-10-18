@@ -16,6 +16,8 @@ registerHooks({ resolve(specifier, context, next) {
 } });
 const { askGemini, parseGeminiResponse, GEMINI_MODEL } = await import('../lib/providers-gemini.ts');
 const { askPerplexity, parsePerplexityResponse, PERPLEXITY_MODEL } = await import('../lib/providers-perplexity.ts');
+const { askOpenAI } = await import('../lib/providers.ts');
+const { readProviderJson } = await import('../lib/providers-http.ts');
 const gemini = (text = '브랜드 비교 답변') => ({ responseId: 'gemini_fixture', candidates: [{ finishReason: 'STOP', content: { role: 'model', parts: [{ text }] } }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 20, thoughtsTokenCount: 5 } });
 const perplexity = (text = '브랜드 답변 [1]. 본문 https://invented.test [99]') => ({ id: 'pplx_fixture', model: PERPLEXITY_MODEL, status: 'completed', error: null, output: [
   { type: 'search_results', results: [{ id: 1, url: 'https://brand.example/page', title: 'Brand source' }, { id: 2, url: 'https://uncited.example', title: 'Uncited result' }] },
@@ -115,4 +117,23 @@ test('provider HTTP, timeout and JSON errors expose only sanitized messages', as
       await assert.rejects(() => ask('Question'), { code: 'invalid_provider_response' });
     } finally { delete globalThis.__providerFixtureEnv[key]; globalThis.fetch = noNetwork; }
   }
+});
+test('all three adapters cancel oversized streamed bodies before parsing despite a false content length', async () => {
+  for (const [ask, key] of [[askOpenAI, 'OPENAI_API_KEY'], [askGemini, 'GEMINI_API_KEY'], [askPerplexity, 'PERPLEXITY_API_KEY']]) {
+    globalThis.__providerFixtureEnv[key] = 'fixture-only-key'; let canceled = false, emitted = 0;
+    globalThis.fetch = async (_url, init) => {
+      assert.equal(init.redirect, 'error'); assert.ok(init.signal instanceof AbortSignal);
+      return new Response(new ReadableStream({ pull(controller) { emitted += 65536; controller.enqueue(new Uint8Array(65536)); }, cancel() { canceled = true; } }), { headers: { 'Content-Length': '1', 'Content-Type': 'application/json' } });
+    };
+    try { await assert.rejects(() => ask('Question'), { code: 'provider_response_too_large' }); assert.equal(canceled, true); assert.ok(emitted < 2 * 1048576); }
+    finally { delete globalThis.__providerFixtureEnv[key]; globalThis.fetch = noNetwork; }
+  }
+});
+test('bounded response parsing handles split Korean UTF-8 and sanitizes broken body streams', async () => {
+  const bytes = new TextEncoder().encode(JSON.stringify({ text: '가나다' }));
+  const split = new ReadableStream({ start(controller) { for (const byte of bytes) controller.enqueue(Uint8Array.of(byte)); controller.close(); } });
+  assert.deepEqual(await readProviderJson(new Response(split), 'Fixture'), { text: '가나다' });
+  const broken = new ReadableStream({ start(controller) { controller.error(new Error('private credentials in upstream exception')); } });
+  await assert.rejects(() => readProviderJson(new Response(broken), 'Fixture'), error => error.code === 'invalid_provider_response' && !error.message.includes('credentials'));
+  await assert.rejects(() => readProviderJson(new Response(Uint8Array.of(0xff)), 'Fixture'), { code: 'invalid_provider_response' });
 });

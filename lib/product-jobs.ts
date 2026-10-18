@@ -7,30 +7,43 @@ import { askProvider, providerStatuses, requireProvider } from './providers';
 import { extractMentions } from './metrics';
 import { syntheticAnswer } from './demo';
 import { ProductError } from './product-validation';
+import { reserveAiUsage } from './usage';
 
-export async function createRun(site:typeof t.sites.$inferSelect,input:{mode:'live'|'demo';models:string[];promptIds?:string[]}){
+export async function createRun(site:typeof t.sites.$inferSelect,input:{mode:'live'|'demo';models:string[];promptIds?:string[]},options:{idempotencyKey?:string}={}){
+  const db=getDb(),runId=options.idempotencyKey||uid();
+  if(!/^[0-9a-f-]{36}$/i.test(runId))throw new ProductError(400,'Invalid analysis idempotency key.','invalid_idempotency_key');
+  const [existing]=await db.select().from(t.runs).where(eq(t.runs.id,runId)).limit(1);
+  if(existing){
+    if(existing.siteId!==site.id||existing.mode!==input.mode||JSON.stringify([...new Set(JSON.parse(existing.models) as string[])].sort())!==JSON.stringify([...new Set(input.models)].sort()))throw new ProductError(409,'This analysis key belongs to a different request.','idempotency_conflict');
+    if(input.promptIds){const rows=await db.select({id:t.answers.promptId}).from(t.answers).where(and(eq(t.answers.runId,runId),eq(t.answers.siteId,site.id)));if(JSON.stringify([...new Set(rows.map(r=>r.id))].sort())!==JSON.stringify([...new Set(input.promptIds)].sort()))throw new ProductError(409,'This analysis key has different questions.','idempotency_conflict');}
+    return publicRun(existing);
+  }
   if(input.mode!==site.mode)throw new ProductError(400,'Live and synthetic data must use separate workspaces.','mode_mismatch');
   const models=[...new Set(input.models)];
   if(site.mode==='live')models.forEach(requireProvider);else if(models.some(m=>!DEMO_MODELS.includes(m as typeof DEMO_MODELS[number])))throw new ProductError(400,'Unknown sample model.','invalid_model');
-  const db=getDb();const active=await db.select().from(t.prompts).where(and(eq(t.prompts.siteId,site.id),eq(t.prompts.active,true)));
+  const active=await db.select().from(t.prompts).where(and(eq(t.prompts.siteId,site.id),eq(t.prompts.active,true)));
   const selected=input.promptIds?active.filter(p=>input.promptIds!.includes(p.id)):active;
   if(input.promptIds&&selected.length!==new Set(input.promptIds).size)throw new ProductError(400,'Select only active questions from this workspace.','invalid_prompt');
   if(!selected.length||selected.length>20)throw new ProductError(400,'Select between 1 and 20 active questions per analysis run.','run_size');
   const unfinished=await db.select({id:t.runs.id}).from(t.runs).where(and(eq(t.runs.siteId,site.id),inArray(t.runs.status,['queued','running']))).limit(3);
   if(unfinished.length>=2)throw new ProductError(409,'Resume your unfinished runs before starting another.','run_in_progress');
   await quota(site.ownerId,'analysis-runs',20);
-  if(site.mode==='live')await quota(site.ownerId,'daily-answer-budget',200,selected.length*models.length);
-  const run={id:uid(),siteId:site.id,mode:site.mode,status:'queued' as const,models:JSON.stringify(models),total:selected.length*models.length,completed:0,failed:0,leaseUntil:0,leaseToken:null,createdAt:now(),completedAt:null,error:null};
+  if(site.mode==='live')await reserveAiUsage(site.ownerId,selected.length*models.length,`analysis:${runId}`);
+  const run={id:runId,siteId:site.id,mode:site.mode,status:'queued' as const,models:JSON.stringify(models),total:selected.length*models.length,completed:0,failed:0,leaseUntil:0,leaseToken:null,createdAt:now(),completedAt:null,error:null};
   const rows=selected.flatMap(p=>models.map(model=>({id:uid(),siteId:site.id,runId:run.id,promptId:p.id,promptText:p.text,model,provider:site.mode==='demo'?'Synthetic demo':providerStatuses().find(p=>p.model===model)!.name,mode:site.mode,status:'pending' as const,createdAt:run.createdAt})));
   // D1 batch is transactional; incomplete job manifests are never visible.
-  await db.batch([db.insert(t.runs).values(run),...rows.map(a=>db.insert(t.answers).values(a))]);
+  try{await db.batch([db.insert(t.runs).values(run),...rows.map(a=>db.insert(t.answers).values(a))]);}catch(error){
+    // A concurrent replay may have committed this exact manifest. The usage reservation is also idempotent.
+    const [committed]=await db.select().from(t.runs).where(and(eq(t.runs.id,runId),eq(t.runs.siteId,site.id))).limit(1);
+    if(committed)return createRun(site,input,{idempotencyKey:runId});throw error;
+  }
   return publicRun(run);
 }
 export async function processRun(site:typeof t.sites.$inferSelect,runId:string){
   const db=getDb();const [original]=await db.select().from(t.runs).where(and(eq(t.runs.id,runId),eq(t.runs.siteId,site.id))).limit(1);
   if(!original)throw new ProductError(404,'Analysis run not found.','not_found');
   if(!['queued','running'].includes(original.status))return {run:publicRun(original),answers:[]};
-  if(site.mode==='live')(JSON.parse(original.models) as string[]).forEach(requireProvider);
+  if(site.mode==='live'){(JSON.parse(original.models) as string[]).forEach(requireProvider);await reserveAiUsage(site.ownerId,original.total,`analysis:${runId}`);}
   const leaseToken=uid(),until=Date.now()+120000;
   const claimed=await db.update(t.runs).set({status:'running',leaseToken,leaseUntil:until}).where(and(eq(t.runs.id,runId),eq(t.runs.siteId,site.id),lte(t.runs.leaseUntil,Date.now()),inArray(t.runs.status,['queued','running']))).returning();
   if(!claimed.length)throw new ProductError(409,'This run is already being processed. Wait briefly, then resume.','run_locked');

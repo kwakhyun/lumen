@@ -15,8 +15,8 @@ export function assertSameOrigin(request:Request){
   const own=new URL(request.url).origin;
   if(!origin || origin!==own || request.headers.get('sec-fetch-site')==='cross-site')throw new ProductError(403,'This action must be sent from this application. Reload the page and try again.','invalid_origin');
 }
-export async function readJson<T>(request:Request,schema:z.ZodType<T>,maxBytes=32768):Promise<T>{
-  if(!request.headers.get('content-type')?.toLowerCase().includes('application/json'))throw new ProductError(415,'Send application/json.','invalid_content_type');
+export async function readJson<S extends z.ZodTypeAny>(request:Request,schema:S,maxBytes=32768):Promise<z.output<S>>{
+  if(request.headers.get('content-type')?.split(';',1)[0].trim().toLowerCase()!=='application/json')throw new ProductError(415,'Send application/json.','invalid_content_type');
   if(Number(request.headers.get('content-length')||0)>maxBytes)throw new ProductError(413,'Request is too large.','body_too_large');
   // Stream with an actual byte bound; Content-Length alone is attacker controlled.
   const reader=request.body?.getReader();if(!reader)throw new ProductError(400,'JSON body is required.','invalid_json');

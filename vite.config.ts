@@ -71,7 +71,7 @@ export default defineConfig(async ({ command }) => {
           ...localBindingConfig,
           ...(command === "serve"
             ? {
-                secrets: { required: ["OPENAI_API_KEY", ...["GEMINI_API_KEY", "PERPLEXITY_API_KEY"].filter((name) => Boolean(process.env[name]))] },
+                secrets: { required: ["OPENAI_API_KEY", ...["GEMINI_API_KEY", "PERPLEXITY_API_KEY", "APP_BASE_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "INTEGRATION_ENCRYPTION_KEY", "INTEGRATION_ENCRYPTION_KEY_PREVIOUS", "LUMEN_AUTOMATION_SECRET", "AI_USER_DAILY_LIMIT", "AI_USER_MONTHLY_LIMIT", "AI_GLOBAL_DAILY_LIMIT", "AI_GLOBAL_MONTHLY_LIMIT"].filter((name) => Boolean(process.env[name]))] },
                 services: [
                   {
                     binding: "CONNECTORS",

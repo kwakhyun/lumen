@@ -35,3 +35,7 @@ export const traffic = sqliteTable('traffic', {
 }, t=>[index('traffic_site_day_idx').on(t.siteId,t.day),uniqueIndex('traffic_bucket_idx').on(t.siteId,t.day,t.source,t.path)]);
 
 export const personas = sqliteTable('personas', {id:text('id').primaryKey(),siteId:text('site_id').notNull().references(()=>sites.id,{onDelete:'cascade'}),name:text('name').notNull(),description:text('description').notNull().default(''),promptPrefix:text('prompt_prefix').notNull().default(''),createdAt:text('created_at').notNull()},t=>[index('personas_site_idx').on(t.siteId)]);
+
+export * from './integrations-schema';
+
+export * from './operations-schema';

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useId, useState, type ReactNode } from "react";
 import { csvCell } from "@/lib/metrics";
 import { ArrowDownToLine, ArrowRight, Loader2, X, Inbox } from "lucide-react";
 
@@ -34,7 +34,7 @@ export function Modal({ title, subtitle, children, onClose, wide = false }: { ti
   return <div className="d-modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) onClose(); }}><div ref={ref} className={`d-modal ${wide ? "d-modal-wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}><header className="d-modal-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="d-icon-button" onClick={onClose} aria-label="닫기"><X size={20} /></button></header>{children}</div></div>;
 }
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) { return <label className="d-field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>; }
-export function Badge({ children, tone = "gray" }: { children: ReactNode; tone?: "green" | "gray" | "amber" | "purple" }) { return <span className={`d-badge d-badge-${tone}`}>{children}</span>; }
+export function Badge({ children, tone = "gray" }: { children: ReactNode; tone?: "green" | "gray" | "amber" | "purple" | "blue" }) { return <span className={`d-badge d-badge-${tone}`}>{children}</span>; }
 export function Skeleton() { return <div className="d-loading" aria-label="데이터 불러오는 중"><div className="d-skeleton d-skeleton-title" /><div className="d-grid-4">{[1, 2, 3, 4].map(n => <div key={n} className="d-skeleton d-skeleton-card" />)}</div><div className="d-skeleton d-skeleton-chart" /></div>; }
 export function downloadFile(filename: string, text: string, type = "text/plain;charset=utf-8") { const url = URL.createObjectURL(new Blob([text], { type })); const link = document.createElement("a"); link.href = url; link.download = filename; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
 export function csvFile(filename: string, rows: (string | number | null | undefined)[][]) { downloadFile(filename, "\uFEFF" + rows.map(row => row.map(csvCell).join(",")).join("\r\n"), "text/csv;charset=utf-8"); }
@@ -42,10 +42,38 @@ export function ExportButton({ onClick }: { onClick: () => void }) { return <But
 export function TextLink({ children, onClick }: { children: ReactNode; onClick: () => void }) { return <button className="d-text-link" onClick={onClick}>{children}<ArrowRight size={14} /></button>; }
 export function dateLabel(value: string) { return new Date(value).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }); }
 export function numberLabel(value: number) { return new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 }).format(value); }
-export const colors = ["#157c70", "#a7c9ba", "#8e91ba", "#c6a87b", "#8db1c5", "#b7bcbd"];
+export const colors = ["var(--lumen-chart-1)", "var(--lumen-chart-2)", "var(--lumen-chart-3)", "var(--lumen-chart-4)", "var(--lumen-chart-5)", "var(--lumen-muted)"];
 export function TrendChart({ data, label = "가시성", suffix = "%" }: { data: { date: string; value: number }[]; label?: string; suffix?: string }) {
-  const width = 760, height = 214, pad = 12, floor = 180; const max = suffix === "%" ? 100 : Math.max(1, ...data.map(d => d.value));
-  const points = data.map((d, i) => ({ ...d, x: 40 + (i / Math.max(data.length - 1, 1)) * (width - 60), y: floor - d.value / max * (floor - pad) }));
+  const gradientId = useId().replaceAll(":", "");
+  const plotRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(760);
+  useEffect(() => {
+    const plot = plotRef.current;
+    if (!plot) return;
+    const measure = () => setWidth(Math.max(280, Math.round(plot.getBoundingClientRect().width)));
+    const observer = new ResizeObserver(entries => {
+      const entry = entries[0];
+      if (entry) setWidth(Math.max(280, Math.round(entry.contentRect.width)));
+    });
+    const frame = requestAnimationFrame(measure);
+    observer.observe(plot);
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+  }, []);
+  const height = 244, pad = 12, floor = 206;
+  const max = suffix === "%" ? 100 : Math.max(4, ...data.map(d => d.value));
+  const points = data.map((d, i) => ({ ...d, x: 48 + (i / Math.max(data.length - 1, 1)) * (width - 66), y: floor - d.value / max * (floor - pad) }));
   const line = points.map((p, i) => `${i ? "L" : "M"}${p.x},${p.y}`).join(" ");
-  return <div className="d-chart"><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${label} 추이, ${data.length}일`}><defs><linearGradient id="lumen-chart-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#157c70" stopOpacity=".18" /><stop offset="100%" stopColor="#157c70" stopOpacity=".01" /></linearGradient></defs>{[0, .25, .5, .75, 1].map(p => <g key={p}><line x1="40" x2={width - 20} y1={floor - p * (floor - pad)} y2={floor - p * (floor - pad)} stroke="#ebeeed" strokeDasharray="3 4" /><text x="0" y={floor - p * (floor - pad) + 4} fill="#96a09d" fontSize="10">{Math.round(p * max)}{suffix}</text></g>)}{points.length > 0 && <><path d={`${line} L${points.at(-1)!.x},${floor} L${points[0].x},${floor} Z`} fill="url(#lumen-chart-fill)" /><path d={line} fill="none" stroke="#157c70" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />{points.map((p, i) => <g key={i}><circle cx={p.x} cy={p.y} r="3" fill="#157c70"><title>{dateLabel(p.date)}: {numberLabel(p.value)}{suffix}</title></circle>{(i === 0 || i === points.length - 1 || i % Math.max(1, Math.ceil(points.length / 6)) === 0) && <text x={p.x} y="207" fill="#96a09d" fontSize="10" textAnchor="middle">{dateLabel(p.date)}</text>}</g>)}</>}</svg></div>;
+  const labelCount = Math.min(data.length, width < 480 ? 3 : 6);
+  const labelIndices = new Set(Array.from({ length: labelCount }, (_, i) => Math.round(i * (data.length - 1) / Math.max(1, labelCount - 1))));
+  const axisLabel = (value: number) => suffix === "%" ? `${Math.round(value)}%` : new Intl.NumberFormat("ko-KR", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+  return <div className="d-chart">
+    <div className="d-chart-plot" ref={plotRef}>
+      <svg viewBox={`0 0 ${width} ${height}`} height={height} role="img" aria-label={`${label} 추이, ${data.length}일`}>
+        <defs><linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--lumen-accent)" stopOpacity=".18" /><stop offset="100%" stopColor="var(--lumen-accent)" stopOpacity=".01" /></linearGradient></defs>
+        {[0, .25, .5, .75, 1].map(p => <g key={p}><line x1="48" x2={width - 18} y1={floor - p * (floor - pad)} y2={floor - p * (floor - pad)} stroke="var(--lumen-border)" strokeDasharray="3 4" /><text x="0" y={floor - p * (floor - pad) + 4} fill="var(--lumen-muted)" fontSize="12">{axisLabel(p * max)}</text></g>)}
+        {points.length > 0 && <><path d={`${line} L${points.at(-1)!.x},${floor} L${points[0].x},${floor} Z`} fill={`url(#${gradientId})`} /><path d={line} fill="none" stroke="var(--lumen-accent)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />{points.map((p, i) => <g key={i}><circle cx={p.x} cy={p.y} r="3" fill="var(--lumen-accent)"><title>{dateLabel(p.date)}: {numberLabel(p.value)}{suffix}</title></circle>{labelIndices.has(i) && <text x={p.x} y="236" fill="var(--lumen-muted)" fontSize="12" textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}>{dateLabel(p.date)}</text>}</g>)}</>}
+      </svg>
+    </div>
+    <details className="d-chart-data"><summary>차트 데이터 보기</summary><table className="d-table"><thead><tr><th>날짜</th><th>{label}</th></tr></thead><tbody>{data.map((point, i) => <tr key={`${point.date}-${i}`}><td>{dateLabel(point.date)}</td><td>{numberLabel(point.value)}{suffix}</td></tr>)}</tbody></table></details>
+  </div>;
 }

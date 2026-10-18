@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { Miniflare } from 'miniflare';
@@ -28,7 +28,7 @@ async function call(method,url,body,user='alice'){
 before(async()=>{
   mf=new Miniflare({modules:true,script:'export default { fetch(){ return new Response("ok"); } }',d1Databases:{DB:'lumen-security-test'}});
   globalThis.__lumenTestEnv.DB=await mf.getD1Database('DB');
-  for(const statement of readFileSync(path.join(root,'drizzle/0000_yummy_hannibal_king.sql'),'utf8').split('--> statement-breakpoint').filter(s=>s.trim()))await globalThis.__lumenTestEnv.DB.prepare(statement).run();
+  for(const file of readdirSync(path.join(root,'drizzle')).filter(name=>name.endsWith('.sql')).sort())for(const statement of readFileSync(path.join(root,'drizzle',file),'utf8').split('--> statement-breakpoint').filter(s=>s.trim()))await globalThis.__lumenTestEnv.DB.prepare(statement).run();
   route=await import('../app/api/[[...path]]/route.ts');
 });
 after(async()=>{await mf?.dispose();});

@@ -5,5 +5,6 @@ declare namespace Cloudflare {
     OPENAI_API_KEY?: string;
     GEMINI_API_KEY?: string;
     PERPLEXITY_API_KEY?: string;
+    LUMEN_AUTOMATION_SECRET?: string;
   }
 }

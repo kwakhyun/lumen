@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import type { ProviderResult } from './providers';
 import { ProductError } from './product-validation';
+import { readProviderJson } from './providers-http';
 
 // Verified 2026-10-18: https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash
 // REST schema: https://ai.google.dev/api/generate-content
@@ -59,7 +60,6 @@ export async function askGemini(input: string, options: { instructions?: string 
     await response.body?.cancel();
     throw new ProductError(response.status === 429 ? 429 : 502, response.status === 429 ? 'Gemini rate or billing limit reached. Check the API project.' : `Gemini rejected the request (HTTP ${response.status}). Check the key, model access and billing.`, 'provider_error');
   }
-  let payload: unknown;
-  try { payload = await response.json(); } catch { throw new ProductError(502, 'Gemini returned an invalid response.', 'invalid_provider_response'); }
+  const payload = await readProviderJson(response, 'Gemini');
   return parseGeminiResponse(payload);
 }

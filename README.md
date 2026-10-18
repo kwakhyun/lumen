@@ -11,6 +11,7 @@ npm ci
 npm run db:generate
 npm run build
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_yummy_hannibal_king.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_rapid_songbird.sql
 node --env-file=../.env.local scripts/run-framework.mjs dev --hostname 127.0.0.1 --port 5173
 ```
 
@@ -30,10 +31,13 @@ node --env-file=../.env.local scripts/run-framework.mjs dev --hostname 127.0.0.1
 - 원문/출처 상세, 콘텐츠/리포트 생성 및 편집, Markdown/CSV 내보내기
 - 실행 과제 보드와 분석 근거를 사용하는 AI 어시스턴트
 - 개인정보를 최소화한 유입 수집 코드와 집계(공개 수집 인프라 필요)
+- D1 일정과 실행 이력, 작업 재개, 운영 알림, 인증된 MCP 수집 도구
+- 읽기 전용 GA4 OAuth, 속성 선택과 집계 보고서 가져오기(외부 OAuth 설정 필요)
+- 명시적 동의 후에만 동작하는 랜딩 페이지 방문 통계
 
 ## 기술 구성
 
-React 19, TypeScript, Vinext(App Router), Cloudflare Workers, D1, Drizzle, Zod. 인증은 Sites 게이트웨이. 원본은 서버 데이터베이스에 저장되며 localStorage는 선택한 워크스페이스 ID만 보관합니다.
+React 19, TypeScript, Vinext(App Router), Cloudflare Workers, D1, Drizzle, Zod. 인증은 Sites 게이트웨이. 원본은 서버 데이터베이스에 저장되며 localStorage는 선택한 워크스페이스 ID와 선택형 방문 통계의 동의 상태를 보관합니다.
 
 `app/api/[[...path]]/route.ts`가 API를 제공합니다. 모든 내부 데이터 API는 로그인 및 사이트 소유권을 확인합니다. 변경 요청은 Origin을 검증하고 본문 크기를 제한합니다. API 키는 서버 바인딩에서만 읽습니다.
 
@@ -41,8 +45,7 @@ React 19, TypeScript, Vinext(App Router), Cloudflare Workers, D1, Drizzle, Zod. 
 
 ```sh
 npx tsc --noEmit
-node --experimental-strip-types --test tests/backend.test.mjs
-node --experimental-strip-types --test tests/providers.test.mjs
+npm test
 npm run build
 ```
 
@@ -62,12 +65,14 @@ Gemini는 웹 검색을 사용하지 않으며 인용을 제공하지 않습니�
 
 Perplexity는 [현재 Agent API 모델 목록](https://docs.perplexity.ai/docs/agent-api/models)의 명시적 Sonar 모델을 사용합니다. 검색 결과 중 답변의 인용 번호와 연결된 항목 또는 제공자의 URL annotation만 인용으로 집계합니다. 단순히 검색된 모든 페이지를 인용으로 간주하지 않습니다.
 
-API 응답은 ChatGPT, Gemini, Perplexity 소비자 앱의 개인화된 결과와 같지 않습니다. 샘플 워크스페이스의 모든 모델 응답은 합성 데이터입니다. 결제, 자동 정기 분석, GA4 OAuth, 외부 블로그 발행은 별도 구현/연결 항목입니다. 모델과 API 확인 근거는 상위 `docs/provider-adapters.md`에 정리했습니다.
+API 응답은 ChatGPT, Gemini, Perplexity 소비자 앱의 개인화된 결과와 같지 않습니다. 샘플 워크스페이스의 모든 모델 응답은 합성 데이터입니다. 결제와 구독은 활성화하지 않은 제한형 무료 서비스이며, 외부 블로그에 자동 발행하지 않습니다. 정기 분석의 서버 실행기와 MCP 도구는 구현됐지만 실제 주기 호출기 연결이 필요합니다. GA4 OAuth와 집계 import도 구현됐으며 운영자의 Google 설정과 실제 연결 검증이 필요합니다. 모델과 API 확인 근거는 상위 `docs/provider-adapters.md`에 정리했습니다.
 
-일일 계정 한도: 실제 답변 200건 예약, 분석 실행 20회, AI 생성 30회. 한 번에 질문 20개, 병렬 답변 2개. 요청 타임아웃 45초, 작업 임대 120초. 중단돼 이미 요청이 전달됐을 수 있는 응답은 비용 중복을 피하기 위해 자동 재전송하지 않습니다.
+기본 무료 AI 호출 예약 한도는 계정당 UTC 하루 10회/월 100회, 서비스 전체 하루 50회/월 500회입니다. 분석 답변, 질문 제안, 문서와 보조 채팅이 같은 예산을 쓰며 환경 설정으로 한도를 낮출 수 있습니다. 분석은 질문 수 × 모델 수를 먼저 예약하므로 한 번에 질문 20개를 선택할 수 있어도 남은 예산을 넘으면 실행하지 않습니다. 분석 실행은 하루 20회, 병렬 답변은 run당 2개로 제한합니다. 요청 타임아웃은 45초, 제공자 응답 상한은 1MB, 작업 임대는 120초입니다. 전달 여부가 불확실한 요청은 자동 재전송하거나 예약을 환급하지 않습니다. 호출 수 한도는 금액 상한을 보증하지 않으므로 제공자 예산도 따로 설정해야 합니다.
 
 화면은 최근 30일, 최대 1,000개 응답을 로드하며 잘린 범위를 표시합니다. 전체 최근 30일 원문은 서버 CSV로 내보낼 수 있습니다. 순위는 답변 내 추적 브랜드의 첫 등장 순서이며 검색 엔진 순위가 아닙니다.
 
 ## 비공개 배포
 
-`.openai/hosting.json`의 사이트 ID를 유지해야 합니다. Sites 스킬의 source workflow로 검증된 소스를 동기화하고 Worker/D1 마이그레이션을 배포합니다. 소스에 시크릿을 추가하지 마세요. 공개 상용 출시 전 운영 주체, 결제, 이용약관/개인정보 정책, 백업, 모니터링과 작업 큐 정책을 확정해야 합니다.
+`.openai/hosting.json`의 사이트 ID를 유지해야 합니다. Sites 스킬의 source workflow로 검증된 소스를 동기화하고 Worker/D1 마이그레이션을 배포합니다. 소스에 시크릿을 추가하지 마세요. 현재 비공개 접근 정책을 바꾸는 작업은 별도 배포 결정입니다. 공개 무료 출시 전 운영 주체와 연락처, 데이터 보존/삭제 정책, 백업, 모니터링, 금액 예산과 주기 수집 운영을 확정해야 합니다. 결제는 현재 출시 범위에 포함되지 않습니다.
+
+랜딩 방문 통계는 지정된 프로덕션 hostname의 `/`에서 명시적 동의 후에만 로드합니다. 대시보드에는 설치하지 않고 계정 및 워크스페이스 데이터를 전달하지 않습니다. GA4 웹 스트림의 Enhanced Measurement를 꺼두어야 합니다. `send_page_view: false`만으로 history 기반 자동 측정이 꺼지지는 않습니다. 실제 Google 설정과 배포 검증 결과는 상위 `docs/`를 참조하세요.

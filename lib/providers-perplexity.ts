@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import type { ProviderResult } from './providers';
 import type { Citation } from './product-types';
 import { ProductError } from './product-validation';
+import { readProviderJson } from './providers-http';
 import { safeHttpUrl } from './metrics';
 
 // Verified 2026-10-18: https://docs.perplexity.ai/docs/agent-api/models
@@ -95,7 +96,6 @@ export async function askPerplexity(input: string, options: { instructions?: str
     await response.body?.cancel();
     throw new ProductError(response.status === 429 ? 429 : 502, response.status === 429 ? 'Perplexity rate or billing limit reached. Check the API project.' : `Perplexity rejected the request (HTTP ${response.status}). Check the key, model access and billing.`, 'provider_error');
   }
-  let payload: unknown;
-  try { payload = await response.json(); } catch { throw new ProductError(502, 'Perplexity returned an invalid response.', 'invalid_provider_response'); }
+  const payload = await readProviderJson(response, 'Perplexity');
   return parsePerplexityResponse(payload);
 }

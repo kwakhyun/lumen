@@ -3,6 +3,7 @@ import type { Citation, ProviderStatus } from './product-types';
 import { LIVE_MODEL } from './product-types';
 import { ProductError } from './product-validation';
 import { parseProviderResponse } from './providers-response';
+import { readProviderJson } from './providers-http';
 import { askGemini, GEMINI_MODEL } from './providers-gemini';
 import { askPerplexity, PERPLEXITY_MODEL } from './providers-perplexity';
 export function providerStatuses():ProviderStatus[]{
@@ -24,9 +25,9 @@ export async function askOpenAI(input:string,options:{search?:boolean;instructio
     ...(options.json?{text:{format:{type:'json_object'}}}:{}),
   };
   let response:Response;
-  try{response=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:`Bearer ${env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(45000)});}catch(e){throw new ProductError(502,e instanceof Error&&/timeout|abort/i.test(e.name)?'OpenAI request timed out. This answer was not collected.':'OpenAI could not be reached. This answer was not collected.','provider_network_error');}
+  try{response=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:`Bearer ${env.OPENAI_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(45000),redirect:'error'});}catch(e){throw new ProductError(502,e instanceof Error&&/timeout|abort/i.test(e.name)?'OpenAI request timed out. This answer was not collected.':'OpenAI could not be reached. This answer was not collected.','provider_network_error');}
   if(!response.ok){await response.body?.cancel();throw new ProductError(response.status===429?429:502,response.status===429?'OpenAI rate or billing limit reached. Check your API project before starting another run.':`OpenAI rejected the request (HTTP ${response.status}). Check the project key, model access and billing.`,'provider_error');}
-  let payload:unknown;try{payload=await response.json();}catch{throw new ProductError(502,'OpenAI returned an invalid response.','invalid_provider_response');}
+  const payload=await readProviderJson(response,'OpenAI');
   const state=(payload&&typeof payload==='object'?payload:{}) as {status?:string};
   if(state.status!=='completed')throw new ProductError(502,'OpenAI did not complete this response. Partial output is excluded from visibility metrics.','incomplete_provider_response');
   const parsed=parseProviderResponse(payload);

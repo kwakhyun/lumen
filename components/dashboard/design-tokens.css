@@ -1,0 +1,46 @@
+/* Lumen / Quiet Intelligence. Shared semantic tokens; no page-specific colors. */
+:root {
+  --lumen-bg: #ffffff;
+  --lumen-surface: #ffffff;
+  --lumen-canvas: #f7f8fa;
+  --lumen-ink: #151c29;
+  --lumen-secondary: #344054;
+  --lumen-muted: #667085;
+  --lumen-disabled: #98a2b3;
+  --lumen-accent: #155eef;
+  --lumen-accent-hover: #004eeb;
+  --lumen-accent-soft: #eff5ff;
+  --lumen-border: #e5e9f0;
+  --lumen-border-strong: #cdd4df;
+  --lumen-success: #067647;
+  --lumen-success-soft: #ecfdf3;
+  --lumen-warning: #8b5700;
+  --lumen-warning-soft: #fffaeb;
+  --lumen-danger: #b42318;
+  --lumen-danger-soft: #fef3f2;
+  --lumen-violet: #6941c6;
+  --lumen-violet-soft: #f4f3ff;
+  --lumen-chart-1: #155eef;
+  --lumen-chart-2: #5279a8;
+  --lumen-chart-3: #7e64b0;
+  --lumen-chart-4: #ad7a35;
+  --lumen-chart-5: #3e9184;
+  --lumen-radius-sm: 6px;
+  --lumen-radius: 12px;
+  --lumen-radius-lg: 20px;
+  --lumen-space-1: 4px;
+  --lumen-space-2: 8px;
+  --lumen-space-3: 12px;
+  --lumen-space-4: 16px;
+  --lumen-space-5: 24px;
+  --lumen-space-6: 32px;
+  --lumen-space-7: 48px;
+  --lumen-space-8: 64px;
+  --lumen-font-body: 16px;
+  --lumen-font-label: 14px;
+  --lumen-font-caption: 12px;
+  --lumen-line-body: 1.65;
+  --lumen-control-height: 44px;
+  --lumen-shadow: 0 16px 48px rgb(16 24 40 / 12%);
+  --lumen-motion-fast: 160ms;
+}
