@@ -46,3 +46,7 @@ Compact dashboard captions use the 12px token, and standalone buttons, icon cont
 Write headings that name the screen's subject, then explain what the user can see or do. Use concrete terms such as AI 답변, 브랜드 언급, 수집 일정 and 개선 작업. Do not replace the subject with a slogan about 기회, 여정 or 다음 행동. Avoid inserting commas for emphasis or using sentence fragments where an ordinary sentence is clearer.
 
 Use 해요체 sparingly for brief empty states and polite 하세요/합니다 for instructions and explanations. Button labels describe the action, such as 질문 추가, 일정 저장 or 답변 보기. Keep metric labels consistent with their definitions. Preserve sample labels, uncertainty, free-tier limits, provider capabilities and consent boundaries when simplifying wording; clearer copy must not promise a feature or outcome the service does not provide.
+
+## First answer onboarding
+
+Use the persisted workspace state to guide brand registration, manual question creation and explicit first collection. Before a completed collection exists, show the current step instead of empty analytics. Optional brand and question settings stay in native details disclosures; their inputs retain default values. Starting collection always passes through consent and a question/model/allowance review. Manual setup never calls a provider. Preserve failed and historical results rather than treating them as zero or silently retrying. Busy dialogs cannot close; collapsed controls do not enter the keyboard focus loop.

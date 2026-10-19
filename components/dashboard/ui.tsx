@@ -13,25 +13,32 @@ export function Panel({ children, className = "", title, subtitle, action }: { c
 export function Empty({ title, text, action, icon }: { title: string; text: string; action?: ReactNode; icon?: ReactNode }) {
   return <div className="d-empty"><span className="d-empty-icon">{icon || <Inbox size={24} strokeWidth={1.4} />}</span><h3>{title}</h3><p>{text}</p>{action}</div>;
 }
-export function Modal({ title, subtitle, children, onClose, wide = false }: { title: string; subtitle?: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
+export function Modal({ title, subtitle, children, onClose, wide = false, dismissDisabled = false }: { title: string; subtitle?: string; children: ReactNode; onClose: () => void; wide?: boolean; dismissDisabled?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
-  useEffect(() => { closeRef.current = onClose; }, [onClose]);
+  const dismissDisabledRef = useRef(dismissDisabled);
+  useEffect(() => { closeRef.current = onClose; dismissDisabledRef.current = dismissDisabled; }, [onClose, dismissDisabled]);
   useEffect(() => {
     const active = document.activeElement as HTMLElement;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const dialog = ref.current;
-    const focusables = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex="0"]') || []).filter(e => !e.hasAttribute("disabled"));
-    focusables()[0]?.focus();
+    const focusables = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], summary, [tabindex="0"]') || []).filter(element => !element.matches(':disabled') && !element.closest('[inert], [hidden]') && element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden");
+    (dialog?.querySelector<HTMLElement>("[data-autofocus]") || focusables()[0] || dialog)?.focus({ preventScroll: true });
     const key = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeRef.current();
-      if (event.key === "Tab") { const items = focusables(); const first = items[0]; const last = items.at(-1); if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); } }
+      if (event.key === "Escape") { event.preventDefault(); if (!dismissDisabledRef.current) closeRef.current(); }
+      if (event.key === "Tab") {
+        const items = focusables(); const first = items[0]; const last = items.at(-1);
+        if (!items.length) { event.preventDefault(); dialog?.focus({ preventScroll: true }); }
+        else if (!dialog?.contains(document.activeElement) || document.activeElement === dialog) { event.preventDefault(); (event.shiftKey ? last : first)?.focus(); }
+        else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
     };
     document.addEventListener("keydown", key);
-    return () => { document.removeEventListener("keydown", key); document.body.style.overflow = previous; active?.focus(); };
+    return () => { document.removeEventListener("keydown", key); document.body.style.overflow = previous; if (active?.isConnected) active.focus({ preventScroll: true }); };
   }, []);
-  return <div className="d-modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) onClose(); }}><div ref={ref} className={`d-modal ${wide ? "d-modal-wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}><header className="d-modal-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="d-icon-button" onClick={onClose} aria-label="닫기"><X size={20} /></button></header>{children}</div></div>;
+  return <div className="d-modal-backdrop" onMouseDown={event => { if (!dismissDisabled && event.currentTarget === event.target) onClose(); }}><div ref={ref} tabIndex={-1} className={`d-modal ${wide ? "d-modal-wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}><header className="d-modal-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button type="button" className="d-icon-button" onClick={onClose} disabled={dismissDisabled} aria-label="닫기"><X size={20} /></button></header>{children}</div></div>;
 }
 type FieldControl = ReactElement<{ id?: string; "aria-describedby"?: string }, "input" | "select" | "textarea">;
 

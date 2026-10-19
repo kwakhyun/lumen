@@ -14,6 +14,7 @@ export default async function DashboardPage({
   const [route, query] = await Promise.all([params, searchParams]);
   const path = `/dashboard${route.path?.length ? `/${route.path.map(encodeURIComponent).join("/")}` : ""}`;
   const safeQuery = new URLSearchParams();
+  if (query.start === "1") safeQuery.set("start", "1");
   if (query.demo === "1") safeQuery.set("demo", "1");
   if (query.ga4 === "connected" || query.ga4 === "error") safeQuery.set("ga4", query.ga4);
   if (typeof query.site === "string" && /^[a-f0-9-]{36}$/i.test(query.site)) safeQuery.set("site", query.site);
