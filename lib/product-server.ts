@@ -42,7 +42,7 @@ export async function getState(site:typeof tables.sites.$inferSelect):Promise<Si
   // Adding/renaming a competitor must not silently produce false zero metrics.
   const answers=answerRows.map(publicAnswer).map(a=>({...a,mentions:extractMentions(a.text,a.citations,[site,...competitors])})),publicRuns=runs.map(publicRun);
   const latest=publicRuns.find(r=>r.completed>0)||publicRuns[0];
-  const summary:TrafficSummary={totalVisits:0,aiVisits:0,sources:[],pages:[],series:[],trackingEnabled:site.mode==='live',note:site.mode==='demo'?'샘플 워크스페이스에서는 유입을 수집하지 않습니다. 실제 워크스페이스에서 추적 스크립트를 설치하세요.':'Last 30 days of client-reported page views. No cookies or IP addresses are stored; query strings are discarded. Cross-site collection requires a publicly reachable collector.'};
+  const summary:TrafficSummary={totalVisits:0,aiVisits:0,sources:[],pages:[],series:[],trackingEnabled:site.mode==='live',note:site.mode==='demo'?'샘플 워크스페이스에서는 방문을 수집하지 않습니다. 내 브랜드의 방문을 수집하려면 해당 워크스페이스에서 추적 스크립트를 확인해 웹사이트에 설치하세요.':'브라우저가 보낸 최근 30일의 방문 기록입니다. 쿠키와 IP 주소는 저장하지 않으며, URL의 쿼리 문자열도 제외합니다.'};
   const sources=new Map<string,number>(),series=new Map<string,{date:string;visits:number;aiVisits:number}>();
   for(const t of trafficRows){const ai=['ChatGPT','Perplexity','Claude','Gemini','Copilot'].includes(t.source);summary.totalVisits+=t.visits;summary.aiVisits+=ai?t.visits:0;sources.set(t.source,(sources.get(t.source)||0)+t.visits);const d=series.get(t.day)||{date:t.day,visits:0,aiVisits:0};d.visits+=t.visits;d.aiVisits+=ai?t.visits:0;series.set(t.day,d);}
   summary.sources=[...sources].map(([source,visits])=>({source,visits})).sort((a,b)=>b.visits-a.visits);summary.pages=trafficPages;summary.series=[...series.values()].sort((a,b)=>a.date.localeCompare(b.date));

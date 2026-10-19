@@ -76,7 +76,7 @@ export async function getOperationsState(ownerId:string,siteId:string):Promise<O
     audit:audits.map(a=>{const {ownerId,...safe}=a;void ownerId;return safe as OperationAudit;}),
     observability:{history,executionDelays:summarizeExecutionDelays(publicExecutions,executionCount[0].n,checkedAt)},
     health:{status,lastHeartbeatAt:last,lastSuccessAt:lastSuccess,activeExecutions:active[0].n,openAlerts:open[0].n,enabledSchedules:enabled[0].n,serviceSecretConfigured:automationSecretConfigured(),checkedAt:new Date(checkedAt).toISOString(),heartbeatAgeMs,oldestDueDelayMs:dueDelays.length?Math.max(...dueDelays):null,overdueScheduleCount,staleAfterMs:HEARTBEAT_STALE_MS,
-      message:status==='not_observed'?'아직 서버 수집기의 실행 기록이 없습니다. 외부 스케줄러 또는 인증된 MCP 호출을 연결하세요.':stale?'2시간 이상 수집기 실행 기록이 없거나 예정된 수집이 지연되었습니다. 외부 스케줄러 연결을 확인하세요.':heartbeatFailed?'최근 서버 수집기 실행에 오류가 발생했습니다. 연결과 실행 기록을 확인하세요.':status==='attention'?'확인이 필요한 운영 알림이 있습니다.':'최근 서버 수집기 실행이 확인되었습니다.'},
+      message:status==='not_observed'?'아직 수집기가 실행된 기록이 없습니다. 정기 실행 설정과 수집기 연결 상태를 확인하세요.':stale?'수집기가 2시간 이상 실행되지 않았거나 예정된 수집이 지연되고 있습니다. 정기 실행 설정과 연결 상태를 확인하세요.':heartbeatFailed?'최근 수집기 실행 중 오류가 발생했습니다. 연결 상태와 실행 기록을 확인하세요.':status==='attention'?'확인이 필요한 운영 알림이 있습니다.':'최근 수집기 실행 기록이 있습니다.'},
   };
 }
 

@@ -12,7 +12,7 @@ export function providerStatuses():ProviderStatus[]{
   const openai=Boolean(env.OPENAI_API_KEY?.trim()),gemini=Boolean(env.GEMINI_API_KEY?.trim()),perplexity=Boolean(env.PERPLEXITY_API_KEY?.trim());
   const paid=!freeOnlyMode();
   return [{id:'openai',name:'OpenAI API',model:LIVE_MODEL,configured:openai,available:openai&&paid,description:paid?'GPT-4.1 mini의 웹 검색 답변입니다. ChatGPT 앱의 응답과 다를 수 있습니다.':'현재 무료 서비스에서는 제공하지 않습니다. 유료 API 호출은 차단되어 있습니다.'},
-  {id:'gemini',name:'Google Gemini API',model:GEMINI_MODEL,configured:gemini,available:gemini,description:'웹 검색 없는 일반 모델 답변의 브랜드 언급을 측정합니다. 실시간 검색과 검증된 인용은 제공하지 않습니다.'},
+  {id:'gemini',name:'Google Gemini API',model:GEMINI_MODEL,configured:gemini,available:gemini,description:'Gemini가 생성한 답변에서 브랜드 언급을 확인합니다. 웹 검색과 인용 출처는 제공하지 않습니다.'},
   {id:'perplexity',name:'Perplexity API',model:PERPLEXITY_MODEL,configured:perplexity,available:perplexity&&paid,description:paid?'Agent API의 Sonar 검색 답변입니다. 제공자가 반환한 출처만 인용으로 기록합니다.':'현재 무료 서비스에서는 제공하지 않습니다. 유료 API 호출은 차단되어 있습니다.'}];
 }
 export function requireProvider(model=defaultGenerationModel()){

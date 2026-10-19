@@ -40,3 +40,9 @@ The overview, question table and run history live in `sections/overview.tsx`, `s
 `useResource` scopes visible data and errors to the current resource path. A path change hides prior data immediately. Superseded and unmounted GET requests are aborted; only the current request can update state. Refresh errors retain the last successful result for that same path, and a completed mutation cancels older GETs before setting its result. There is no automatic retry or AI request in this hook.
 
 Compact dashboard captions use the 12px token, and standalone buttons, icon controls, select controls and checkbox labels use the 44px control token. Text fields use 16px on small screens. Long user-provided titles and descriptions may wrap instead of widening their card. Experimental results keep paired sample counts and limitations visible; the metric-definition table scrolls inside its own container.
+
+## Korean product copy
+
+Write headings that name the screen's subject, then explain what the user can see or do. Use concrete terms such as AI 답변, 브랜드 언급, 수집 일정 and 개선 작업. Do not replace the subject with a slogan about 기회, 여정 or 다음 행동. Avoid inserting commas for emphasis or using sentence fragments where an ordinary sentence is clearer.
+
+Use 해요체 sparingly for brief empty states and polite 하세요/합니다 for instructions and explanations. Button labels describe the action, such as 질문 추가, 일정 저장 or 답변 보기. Keep metric labels consistent with their definitions. Preserve sample labels, uncertainty, free-tier limits, provider capabilities and consent boundaries when simplifying wording; clearer copy must not promise a feature or outcome the service does not provide.

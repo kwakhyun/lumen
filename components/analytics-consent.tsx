@@ -21,9 +21,9 @@ export function AnalyticsConsent() {
     setChoice(value); controller.current?.apply(value); setOpen(false); trigger.current?.focus();
   }
   return <><button ref={trigger} type="button" className="analytics-preferences" onClick={() => setOpen(true)} aria-expanded={open} aria-controls="analytics-consent-panel">방문 통계 설정</button>{open && <section id="analytics-consent-panel" className="analytics-consent" role="dialog" aria-labelledby="analytics-consent-title" aria-describedby="analytics-consent-description">
-    <div className="analytics-consent-heading"><h2 id="analytics-consent-title">방문 통계, 선택할 수 있어요.</h2><button type="button" className="analytics-close" aria-label="설정 닫기" onClick={() => { setOpen(false); trigger.current?.focus(); }}>×</button></div>
-    <p id="analytics-consent-description">허용하면 Google Analytics가 쿠키를 사용해 이 소개 페이지의 방문과 유입 도메인, 브라우저 기본 정보를 분석합니다. 대시보드, 질문, 답변과 계정 정보는 보내지 않습니다. 거절해도 모든 기능을 이용할 수 있습니다.</p>
-    <p className="analytics-consent-note">{!eligible ? '현재는 로컬 또는 허용되지 않은 미리보기 환경으로, 통계를 전송하지 않습니다.' : choice === 'granted' ? '현재 허용 상태입니다. 아래에서 언제든 거절로 바꿀 수 있습니다.' : choice === 'denied' ? '현재 거절 상태로, 통계를 전송하지 않습니다.' : '선택하기 전에는 Google 분석 스크립트를 불러오지 않습니다.'}{storageUnavailable && ' 브라우저가 설정 저장을 차단해 이 페이지에서만 선택을 적용합니다.'}</p>
-    <div className="analytics-consent-actions"><a href="/privacy#landing-analytics">처리 내용 보기</a><div><button type="button" onClick={() => choose('denied')}>허용하지 않기</button><button type="button" onClick={() => choose('granted')}>방문 통계 허용</button></div></div>
+    <div className="analytics-consent-heading"><h2 id="analytics-consent-title">방문 통계 수집을 허용할까요?</h2><button type="button" className="analytics-close" aria-label="설정 닫기" onClick={() => { setOpen(false); trigger.current?.focus(); }}>×</button></div>
+    <p id="analytics-consent-description">허용하면 Google Analytics가 쿠키를 사용해 소개 페이지의 방문 수, 유입 도메인과 브라우저 기본 정보를 분석합니다. 대시보드, 질문, 답변과 계정 정보는 보내지 않습니다. 거절해도 모든 기능을 이용할 수 있습니다.</p>
+    <p className="analytics-consent-note">{!eligible ? '로컬 환경이나 통계 수집이 허용되지 않은 미리보기에서는 방문 정보를 전송하지 않습니다.' : choice === 'granted' ? '현재 방문 통계 수집을 허용하고 있습니다. 언제든 아래에서 변경할 수 있습니다.' : choice === 'denied' ? '현재 방문 통계 수집을 허용하지 않아 정보를 전송하지 않습니다.' : '허용하기 전에는 Google Analytics를 실행하지 않습니다.'}{storageUnavailable && ' 브라우저에서 설정을 저장할 수 없어 현재 페이지에서만 선택이 적용됩니다.'}</p>
+    <div className="analytics-consent-actions"><a href="/privacy#landing-analytics">수집 정보 확인</a><div><button type="button" onClick={() => choose('denied')}>허용하지 않기</button><button type="button" onClick={() => choose('granted')}>방문 통계 허용</button></div></div>
   </section>}</>;
 }

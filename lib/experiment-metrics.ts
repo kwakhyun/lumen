@@ -32,9 +32,9 @@ export function compareExperiment(before: ExperimentSnapshot, after: ExperimentS
   const first = pairs.length ? rate(beforeCount) : null;
   const last = pairs.length ? rate(afterCount) : null;
   const delta = pairs.length ? Math.round((afterCount - beforeCount) / pairs.length * 1000) / 10 : null;
-  const caveats = ['동일 질문과 모델의 전후 관측입니다. 개선 작업의 인과 효과나 통계적 유의성을 입증하지 않습니다.'];
-  if (pairs.length < before.cells.length) caveats.push('양쪽 모두 성공한 답변만 같은 분모로 비교합니다. 실패한 표본은 제외되므로 결과가 편향될 수 있습니다.');
-  if (pairs.length < 30) caveats.push('표본이 적습니다. 한두 답변의 변화를 서비스 전체 성과로 해석하지 마세요.');
+  const caveats = ['같은 질문과 모델로 수집한 두 결과를 비교합니다. 변화가 개선 작업 때문인지, 우연을 넘어 통계적으로 의미가 있는지는 이 비교만으로 알 수 없습니다.'];
+  if (pairs.length < before.cells.length) caveats.push('두 수집에서 모두 성공한 답변만 비교하며, 같은 답변 수를 기준으로 비율을 계산합니다. 실패한 답변이 제외되어 결과가 편향될 수 있습니다.');
+  if (pairs.length < 30) caveats.push('비교할 답변이 적습니다. 일부 답변의 변화가 서비스 전체 성과를 뜻하지는 않습니다.');
   // Classify against exact counts; display rounding must never turn a near miss into success.
   return { paired: pairs.length, total: before.cells.length, baselineFailed: before.cells.filter(c => c.status === 'failed').length, followupFailed: after.cells.filter(c => c.status === 'failed').length, before: first, after: last, delta, targetObserved: pairs.length > 0 && (afterCount - beforeCount) * 100 >= target * pairs.length, caveats };
 }
