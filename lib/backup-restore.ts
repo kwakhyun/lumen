@@ -1,9 +1,9 @@
-import { BACKUP_TABLE_NAMES, BACKUP_TABLES, BackupError, canonicalJson, sha256, validateBackup } from './backup-format';
-import type { BackupRow, BackupTables, BackupTableName } from './backup-format';
+import { BACKUP_TABLE_NAMES, BackupError, canonicalJson, sha256, validateBackup } from './backup-format';
+import type { BackupRow, BackupTables } from './backup-format';
 
 export const RESTORE_OWNER = 'isolated-backup-verification';
 const stoppedMessage = 'Stopped in an isolated backup restore. Original state remains in the backup file.';
-const sensitiveTables = ['quotas', 'ai_usage_buckets', 'ai_usage_reservations', 'oauth_states', 'operation_heartbeats', 'ai_eligibility'];
+const sensitiveTables = ['quotas', 'ai_usage_buckets', 'ai_usage_reservations', 'oauth_states', 'operation_heartbeats', 'operation_ticks', 'ai_eligibility'];
 const ownerTables = new Set(['sites', 'collection_schedules', 'scheduled_executions', 'operation_alerts', 'operation_audit', 'ga4_connections']);
 export type RestoreSummary = { sourceDigest: string; restoredDigest: string; rowCount: number; counts: Record<string, number>; remappedIds: number; disabledSchedules: number; stoppedAnswers: number; stoppedExecutions: number; foreignKeyViolations: number; integrity: 'ok'; credentials: 'excluded'; externalCalls: 0 };
 /** Only called by the local Miniflare CLI/tests, never exported as an HTTP or MCP action. */
@@ -19,14 +19,16 @@ export async function restoreToEmptyDatabase(db: D1Database, input: unknown): Pr
     if (value === null) return null;
     const old = String(value); if (!idMap.has(old)) idMap.set(old, crypto.randomUUID()); return idMap.get(old)!;
   }
-  const tables = structuredClone(backup.tables) as BackupTables;
+  // Validate the original V1 digest first. Only the isolated copy gains an empty
+  // experiments table; never rewrite the historical envelope or its digest.
+  const tables = Object.fromEntries(BACKUP_TABLE_NAMES.map(name => [name, structuredClone(backup.tables[name] || [])])) as BackupTables;
   let stoppedAnswers = 0, stoppedExecutions = 0;
   const newSiteId = remap(backup.scope.sourceSiteId)!;
   // A single map preserves the intentional execution.id === run.id relation.
   for (const name of BACKUP_TABLE_NAMES) for (const row of tables[name]) {
     if ('id' in row) row.id = remap(row.id);
     if ('site_id' in row) row.site_id = newSiteId;
-    for (const key of ['run_id', 'prompt_id', 'schedule_id', 'execution_id', 'subject_id']) if (key in row) row[key] = remap(row[key]);
+    for (const key of ['run_id', 'prompt_id', 'schedule_id', 'execution_id', 'subject_id', 'baseline_run_id', 'followup_run_id']) if (key in row) row[key] = remap(row[key]);
     if (ownerTables.has(name)) row.owner_id = RESTORE_OWNER;
     if (name === 'sites') row.tracking_key = crypto.randomUUID();
     if (name === 'runs') { row.lease_token = null; row.lease_until = 0; }
@@ -71,7 +73,7 @@ export async function restoreToEmptyDatabase(db: D1Database, input: unknown): Pr
   for (const name of BACKUP_TABLE_NAMES) {
     const rows = (await db.prepare(`SELECT * FROM "${name}" ORDER BY ${name === 'ga4_connections' ? 'site_id' : 'id'}`).all<BackupRow>()).results;
     counts[name] = rows.length;
-    if (rows.length !== backup.counts[name]) throw new BackupError('restore_incomplete', 'Restored row counts differ.');
+    if (rows.length !== (backup.counts[name] ?? 0)) throw new BackupError('restore_incomplete', 'Restored row counts differ.');
     // Compare every imported value, including answer/document/report content, without logging it.
     const expected = [...tables[name]].sort((a, b) => String(a[name === 'ga4_connections' ? 'site_id' : 'id']).localeCompare(String(b[name === 'ga4_connections' ? 'site_id' : 'id'])));
     const projected = rows.map(row => Object.fromEntries(Object.keys(expected[0] || {}).map(key => [key, row[key]])));

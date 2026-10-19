@@ -15,7 +15,7 @@ registerHooks({ resolve(specifier, context, next) {
   }
   return next(specifier, context);
 } });
-const { BACKUP_MAX_BYTES, BACKUP_MIGRATIONS, BackupError, validateBackup } = await import('../lib/backup-format.ts');
+const { BACKUP_MAX_BYTES, BACKUP_MIGRATIONS, BackupError, canonicalJson, validateBackup } = await import('../lib/backup-format.ts');
 const { restoreToEmptyDatabase } = await import('../lib/backup-restore.ts');
 let output, created = false, mf;
 try {
@@ -32,8 +32,12 @@ try {
   let inputData;
   try { inputData = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { throw new BackupError('backup_invalid', 'Input is not valid UTF-8 JSON.'); }
   const backup = await validateBackup(inputData);
+  // Only manifests accepted by the version-specific validator reach this point.
+  // A supported historical manifest must also be the unchanged prefix of the
+  // current schema; we apply the whole pinned chain to the new empty database.
+  if (canonicalJson(backup.schemaMigrations) !== canonicalJson(BACKUP_MIGRATIONS.slice(0, backup.schemaMigrations.length))) throw new BackupError('restore_schema_unsupported', 'Backup migrations are not a supported prefix of the local schema.');
   const migrations = (await readdir(path.join(root, 'drizzle'))).filter(name => name.endsWith('.sql')).sort();
-  if (JSON.stringify(migrations) !== JSON.stringify(BACKUP_MIGRATIONS.map(m => m.name))) throw new BackupError('restore_schema_unsupported', 'Local migrations do not match the backup schema.');
+  if (JSON.stringify(migrations) !== JSON.stringify(BACKUP_MIGRATIONS.map(m => m.name))) throw new BackupError('restore_schema_unsupported', 'Local migrations do not match the supported restore schema.');
   const sql = [];
   for (const migration of BACKUP_MIGRATIONS) {
     const source = await readFile(path.join(root, 'drizzle', migration.name), 'utf8');

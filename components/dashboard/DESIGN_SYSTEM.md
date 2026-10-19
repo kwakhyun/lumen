@@ -30,3 +30,13 @@ Usage windows are server-backed reservations. UTC reset times are displayed in K
 ## Verification
 
 Check desktop and390px mobile, keyboard navigation,200%zoom/reflow, label association, error states and live API mutations. Screenshot comparison informs visual QA; it does not alone establish WCAG compliance.
+
+## Component contracts and refresh behavior
+
+`Field` accepts exactly one native `input`, `select`, or `textarea`. It provides an explicit label association and connects its hint with `aria-describedby`. Caller-supplied IDs and description IDs, handlers, refs and form attributes remain intact. Multiple controls belong in a labelled fieldset rather than one Field.
+
+The overview, question table and run history live in `sections/overview.tsx`, `sections/prompts.tsx` and `sections/run-history.tsx`. `prompt-evidence.ts` groups completed answers once for the question views; it does not change metric definitions. Existing whole-document navigation remains intentional.
+
+`useResource` scopes visible data and errors to the current resource path. A path change hides prior data immediately. Superseded and unmounted GET requests are aborted; only the current request can update state. Refresh errors retain the last successful result for that same path, and a completed mutation cancels older GETs before setting its result. There is no automatic retry or AI request in this hook.
+
+Compact dashboard captions use the 12px token, and standalone buttons, icon controls, select controls and checkbox labels use the 44px control token. Text fields use 16px on small screens. Long user-provided titles and descriptions may wrap instead of widening their card. Experimental results keep paired sample counts and limitations visible; the metric-definition table scrolls inside its own container.

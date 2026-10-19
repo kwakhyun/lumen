@@ -70,7 +70,7 @@ export async function POST(request:Request) {
       // Only Sites' trusted currentUser identity and server configuration grant this
       // capability. Arguments, email, request headers and whitespace never widen it.
       globalCollection=typeof env.LUMEN_OPERATOR_USER_ID==='string'&&env.LUMEN_OPERATOR_USER_ID.length>0&&env.LUMEN_OPERATOR_USER_ID===user.userId;
-      const tick=await tickDueSchedules(globalCollection?{limit}:{ownerId:user.userId,limit});
+      const tick=await tickDueSchedules(globalCollection?{limit,entryPoint:'mcp_operator'}:{ownerId:user.userId,limit,entryPoint:'mcp_owner'});
       // An operator may advance work but cannot read another tenant's identifiers,
       // prompts, run data or errors through this endpoint. Keep a positive allowlist.
       result=globalCollection?{scope:'service',queued:tick.queued,processed:tick.processed,completed:tick.completed,failed:tick.failed,blocked:tick.blocked,continuation:tick.continuation,retryAfterSeconds:tick.retryAfterSeconds,skipped:tick.skipped}:tick;

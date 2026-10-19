@@ -9,12 +9,13 @@ import { getUsageStatus } from './usage';
 import { requireAiEligibility } from './eligibility';
 import { isValidTimeZone, nextOccurrence } from './automation-time';
 import { automationSecretConfigured } from './operations-security';
+import { executionDelays, HEARTBEAT_STALE_MS, readTickHistory, summarizeExecutionDelays } from './operations-observability';
 import type { CollectionSchedule, OperationAlert, OperationAudit, OperationsState, ScheduledExecution } from './operations-types';
 export const scheduleInput=z.object({siteId:z.string().uuid(),name:z.string().trim().min(1).max(80),enabled:z.boolean().default(true),endsAt:z.string().datetime({offset:true}).refine(value=>Number.isFinite(Date.parse(value)),'올바른 종료 시각을 입력하세요.').nullable().optional(),frequency:z.enum(['daily','weekly']),timezone:z.string().max(80).refine(isValidTimeZone,'올바른 IANA 시간대를 입력하세요.'),hour:z.number().int().min(0).max(23),minute:z.number().int().min(0).max(59),weekdays:z.array(z.number().int().min(0).max(6)).max(7).default([]),models:z.array(z.string().max(80)).min(1).max(3),promptIds:z.array(z.string().uuid()).min(1).max(20).nullable().optional()}).strict();
 export const schedulePatch=scheduleInput.omit({siteId:true}).partial().extend({siteId:z.string().uuid(),id:z.string().uuid()}).strict();
 export type ScheduleRow=typeof t.collectionSchedules.$inferSelect;
 export function publicSchedule(s:ScheduleRow):CollectionSchedule{return {id:s.id,siteId:s.siteId,name:s.name,enabled:s.enabled,frequency:s.frequency,timezone:s.timezone,hour:s.hour,minute:s.minute,weekdays:JSON.parse(s.weekdays),models:JSON.parse(s.models),promptIds:s.promptIds?JSON.parse(s.promptIds):null,nextRunAt:new Date(s.nextRunAt).toISOString(),endsAt:s.endsAt===null?null:new Date(s.endsAt).toISOString(),lastRunAt:s.lastRunAt?new Date(s.lastRunAt).toISOString():null,lastStatus:s.lastStatus,createdAt:s.createdAt,updatedAt:s.updatedAt};}
-export function publicExecution(e:typeof t.scheduledExecutions.$inferSelect):ScheduledExecution{return {id:e.id,scheduleId:e.scheduleId,siteId:e.siteId,scheduleName:e.scheduleName,scheduledFor:new Date(e.scheduledFor).toISOString(),status:e.status,runId:e.runId,attempts:e.attempts,completed:e.completed,failed:e.failed,total:e.total,errorCode:e.errorCode,message:e.message,createdAt:e.createdAt,updatedAt:e.updatedAt,completedAt:e.completedAt};}
+export function publicExecution(e:typeof t.scheduledExecutions.$inferSelect):ScheduledExecution{return {id:e.id,scheduleId:e.scheduleId,siteId:e.siteId,scheduleName:e.scheduleName,scheduledFor:new Date(e.scheduledFor).toISOString(),status:e.status,runId:e.runId,attempts:e.attempts,completed:e.completed,failed:e.failed,total:e.total,errorCode:e.errorCode,message:e.message,createdAt:e.createdAt,updatedAt:e.updatedAt,completedAt:e.completedAt,...executionDelays(e.scheduledFor,e.createdAt,e.completedAt)};}
 function publicAlert(a:typeof t.operationAlerts.$inferSelect):OperationAlert{const {ownerId,dedupeKey,...safe}=a;void ownerId;void dedupeKey;return safe;}
 export async function audit(ownerId:string,siteId:string,action:string,subjectId:string|null,summary:string){await getDb().insert(t.operationAudit).values({id:uid(),ownerId,siteId,action,subjectId,summary,createdAt:now()});}
 export async function alert(ownerId:string,siteId:string,executionId:string|null,code:string,title:string,message:string,severity:'warning'|'critical'='warning',dedupeKey=`${code}:${executionId||siteId}`){const date=now();await getDb().insert(t.operationAlerts).values({id:uid(),ownerId,siteId,executionId,dedupeKey,severity,code,title,message,status:'open',createdAt:date,updatedAt:date}).onConflictDoNothing();}
@@ -44,19 +45,39 @@ async function updateScheduleUnlocked(ownerId:string,input:z.infer<typeof schedu
 async function deleteScheduleUnlocked(ownerId:string,siteId:string,id:string){await ownedSchedule(ownerId,siteId,id);const date=now();await getDb().batch([getDb().update(t.collectionSchedules).set({enabled:false,deletedAt:date,updatedAt:date}).where(and(eq(t.collectionSchedules.id,id),eq(t.collectionSchedules.ownerId,ownerId))),getDb().update(t.scheduledExecutions).set({status:'cancelled',completedAt:date,updatedAt:date,message:'일정이 삭제되어 대기 중인 실행을 취소했습니다.'}).where(and(eq(t.scheduledExecutions.scheduleId,id),eq(t.scheduledExecutions.ownerId,ownerId),eq(t.scheduledExecutions.status,'queued')))]);await audit(ownerId,siteId,'schedule_deleted',id,'수집 일정을 삭제했습니다. 실행 이력은 보관됩니다.');}
 export async function acknowledgeAlert(ownerId:string,siteId:string,id:string,status:'acknowledged'|'resolved'){await ownedSite(siteId,ownerId);const [row]=await getDb().update(t.operationAlerts).set({status,updatedAt:now()}).where(and(eq(t.operationAlerts.id,id),eq(t.operationAlerts.ownerId,ownerId),eq(t.operationAlerts.siteId,siteId))).returning();if(!row)throw new ProductError(404,'알림을 찾을 수 없습니다.','not_found');await audit(ownerId,siteId,'alert_updated',id,'운영 알림의 확인 상태를 변경했습니다.');return publicAlert(row);}
 export async function getOperationsState(ownerId:string,siteId:string):Promise<OperationsState>{
-  await ownedSite(siteId,ownerId);const db=getDb();const [schedules,executions,alerts,audits,heartbeats,enabled,active,open]=await Promise.all([
+  await ownedSite(siteId,ownerId);
+  const db=getDb(),checkedAt=Date.now();
+  const [schedules,executions,alerts,audits,heartbeats,enabled,active,open,executionCount,history]=await Promise.all([
     db.select().from(t.collectionSchedules).where(and(eq(t.collectionSchedules.ownerId,ownerId),eq(t.collectionSchedules.siteId,siteId),isNull(t.collectionSchedules.deletedAt))).orderBy(desc(t.collectionSchedules.createdAt)).limit(20),
-    db.select().from(t.scheduledExecutions).where(and(eq(t.scheduledExecutions.ownerId,ownerId),eq(t.scheduledExecutions.siteId,siteId))).orderBy(desc(t.scheduledExecutions.createdAt)).limit(50),
+    db.select().from(t.scheduledExecutions).where(and(eq(t.scheduledExecutions.ownerId,ownerId),eq(t.scheduledExecutions.siteId,siteId))).orderBy(desc(t.scheduledExecutions.createdAt),desc(t.scheduledExecutions.id)).limit(50),
     db.select().from(t.operationAlerts).where(and(eq(t.operationAlerts.ownerId,ownerId),eq(t.operationAlerts.siteId,siteId))).orderBy(desc(t.operationAlerts.createdAt)).limit(50),
     db.select().from(t.operationAudit).where(and(eq(t.operationAudit.ownerId,ownerId),eq(t.operationAudit.siteId,siteId))).orderBy(desc(t.operationAudit.createdAt)).limit(50),
     db.select().from(t.operationHeartbeats).where(inArray(t.operationHeartbeats.id,[`owner:${ownerId}`,'service'])),
-    db.select({n:count()}).from(t.collectionSchedules).where(and(eq(t.collectionSchedules.ownerId,ownerId),eq(t.collectionSchedules.siteId,siteId),eq(t.collectionSchedules.enabled,true),isNull(t.collectionSchedules.deletedAt),or(isNull(t.collectionSchedules.endsAt),gt(t.collectionSchedules.endsAt,Date.now())))),
+    db.select({n:count()}).from(t.collectionSchedules).where(and(eq(t.collectionSchedules.ownerId,ownerId),eq(t.collectionSchedules.siteId,siteId),eq(t.collectionSchedules.enabled,true),isNull(t.collectionSchedules.deletedAt),or(isNull(t.collectionSchedules.endsAt),gt(t.collectionSchedules.endsAt,checkedAt)))),
     db.select({n:count()}).from(t.scheduledExecutions).where(and(eq(t.scheduledExecutions.ownerId,ownerId),eq(t.scheduledExecutions.siteId,siteId),inArray(t.scheduledExecutions.status,['queued','running']))),
     db.select({n:count()}).from(t.operationAlerts).where(and(eq(t.operationAlerts.ownerId,ownerId),eq(t.operationAlerts.siteId,siteId),eq(t.operationAlerts.status,'open'))),
+    db.select({n:count()}).from(t.scheduledExecutions).where(and(eq(t.scheduledExecutions.ownerId,ownerId),eq(t.scheduledExecutions.siteId,siteId))),
+    readTickHistory(ownerId,checkedAt),
   ]);
-  const last=heartbeats.map(h=>h.lastFinishedAt||h.lastStartedAt).filter((v):v is string=>!!v).sort().at(-1)||null,lastSuccess=heartbeats.map(h=>h.lastSuccessAt).filter((v):v is string=>!!v).sort().at(-1)||null;
-  const overdue=schedules.some(s=>s.enabled&&(s.endsAt===null||s.endsAt>Date.now())&&Date.now()-s.nextRunAt>2*3600000);const stale=overdue||enabled[0].n>0&&last!==null&&Date.now()-Date.parse(last)>2*3600000;const latestHeartbeat=[...heartbeats].sort((a,b)=>(a.lastFinishedAt||a.lastStartedAt||'').localeCompare(b.lastFinishedAt||b.lastStartedAt||'')).at(-1);const heartbeatFailed=!!latestHeartbeat?.lastErrorCode;const status=!last?'not_observed':open[0].n||stale||heartbeatFailed?'attention':'healthy';
-  return {schedules:schedules.map(publicSchedule),executions:executions.map(publicExecution),alerts:alerts.map(publicAlert),audit:audits.map(a=>{const {ownerId,...safe}=a;void ownerId;return safe as OperationAudit;}),health:{status,lastHeartbeatAt:last,lastSuccessAt:lastSuccess,activeExecutions:active[0].n,openAlerts:open[0].n,enabledSchedules:enabled[0].n,serviceSecretConfigured:automationSecretConfigured(),message:status==='not_observed'?'아직 서버 수집기의 실행 기록이 없습니다. 외부 스케줄러 또는 인증된 MCP 호출을 연결하세요.':stale?'2시간 이상 수집기 실행 기록이 없거나 예정된 수집이 지연되었습니다. 외부 스케줄러 연결을 확인하세요.':heartbeatFailed?'최근 서버 수집기 실행에 오류가 발생했습니다. 연결과 실행 기록을 확인하세요.':status==='attention'?'확인이 필요한 운영 알림이 있습니다.':'최근 서버 수집기 실행이 확인되었습니다.'}};
+  // Read-time calculation continues to detect gaps even when the dispatcher stops entirely.
+  const activityAt=(h:typeof t.operationHeartbeats.$inferSelect)=>[h.lastFinishedAt,h.lastStartedAt].filter((v):v is string=>!!v).sort().at(-1)||null;
+  const last=heartbeats.map(activityAt).filter((v):v is string=>!!v).sort().at(-1)||null;
+  const lastSuccess=heartbeats.map(h=>h.lastSuccessAt).filter((v):v is string=>!!v).sort().at(-1)||null;
+  const dueDelays=schedules.filter(s=>s.enabled&&(s.endsAt===null||s.endsAt>checkedAt)&&s.nextRunAt<checkedAt).map(s=>checkedAt-s.nextRunAt);
+  const overdueScheduleCount=dueDelays.filter(delay=>delay>HEARTBEAT_STALE_MS).length;
+  const heartbeatAgeMs=last===null?null:Math.max(0,checkedAt-Date.parse(last));
+  const stale=overdueScheduleCount>0||enabled[0].n>0&&heartbeatAgeMs!==null&&heartbeatAgeMs>HEARTBEAT_STALE_MS;
+  const latestHeartbeat=[...heartbeats].sort((a,b)=>(activityAt(a)||'').localeCompare(activityAt(b)||'')).at(-1);
+  const heartbeatFailed=!!latestHeartbeat?.lastErrorCode;
+  const status=!last?'not_observed':open[0].n||stale||heartbeatFailed?'attention':'healthy';
+  const publicExecutions=executions.map(publicExecution);
+  return {
+    schedules:schedules.map(publicSchedule),executions:publicExecutions,alerts:alerts.map(publicAlert),
+    audit:audits.map(a=>{const {ownerId,...safe}=a;void ownerId;return safe as OperationAudit;}),
+    observability:{history,executionDelays:summarizeExecutionDelays(publicExecutions,executionCount[0].n,checkedAt)},
+    health:{status,lastHeartbeatAt:last,lastSuccessAt:lastSuccess,activeExecutions:active[0].n,openAlerts:open[0].n,enabledSchedules:enabled[0].n,serviceSecretConfigured:automationSecretConfigured(),checkedAt:new Date(checkedAt).toISOString(),heartbeatAgeMs,oldestDueDelayMs:dueDelays.length?Math.max(...dueDelays):null,overdueScheduleCount,staleAfterMs:HEARTBEAT_STALE_MS,
+      message:status==='not_observed'?'아직 서버 수집기의 실행 기록이 없습니다. 외부 스케줄러 또는 인증된 MCP 호출을 연결하세요.':stale?'2시간 이상 수집기 실행 기록이 없거나 예정된 수집이 지연되었습니다. 외부 스케줄러 연결을 확인하세요.':heartbeatFailed?'최근 서버 수집기 실행에 오류가 발생했습니다. 연결과 실행 기록을 확인하세요.':status==='attention'?'확인이 필요한 운영 알림이 있습니다.':'최근 서버 수집기 실행이 확인되었습니다.'},
+  };
 }
 
 export async function readOwnedExecution(ownerId:string,siteId:string,id:string){await ownedSite(siteId,ownerId);const [row]=await getDb().select().from(t.scheduledExecutions).where(and(eq(t.scheduledExecutions.id,id),eq(t.scheduledExecutions.ownerId,ownerId),eq(t.scheduledExecutions.siteId,siteId))).limit(1);if(!row)throw new ProductError(404,'수집 실행을 찾을 수 없습니다.','not_found');return publicExecution(row);}

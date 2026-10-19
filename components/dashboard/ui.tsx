@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useId, useState, type ReactNode } from "react";
+import { cloneElement, useEffect, useRef, useId, useState, type ReactElement, type ReactNode } from "react";
 import { csvCell } from "@/lib/metrics";
 import { ArrowDownToLine, ArrowRight, Loader2, X, Inbox } from "lucide-react";
 
@@ -33,13 +33,26 @@ export function Modal({ title, subtitle, children, onClose, wide = false }: { ti
   }, []);
   return <div className="d-modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) onClose(); }}><div ref={ref} className={`d-modal ${wide ? "d-modal-wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}><header className="d-modal-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="d-icon-button" onClick={onClose} aria-label="닫기"><X size={20} /></button></header>{children}</div></div>;
 }
-export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) { return <label className="d-field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>; }
+type FieldControl = ReactElement<{ id?: string; "aria-describedby"?: string }, "input" | "select" | "textarea">;
+
+/** One native control per field. Keep its own ID, ref, handlers and description IDs. */
+export function Field({ label, children, hint }: { label: string; children: FieldControl; hint?: string }) {
+  const generatedId = useId();
+  const controlId = children.props.id || `field-${generatedId}`;
+  const hintId = `field-hint-${generatedId}`;
+  const descriptionIds = [children.props["aria-describedby"], hint ? hintId : undefined].filter(Boolean).join(" ") || undefined;
+  return <div className="d-field">
+    <label htmlFor={controlId}>{label}</label>
+    {cloneElement(children, { id: controlId, "aria-describedby": descriptionIds })}
+    {hint && <small id={hintId}>{hint}</small>}
+  </div>;
+}
 export function Badge({ children, tone = "gray" }: { children: ReactNode; tone?: "green" | "gray" | "amber" | "purple" | "blue" }) { return <span className={`d-badge d-badge-${tone}`}>{children}</span>; }
 export function Skeleton() { return <div className="d-loading" aria-label="데이터 불러오는 중"><div className="d-skeleton d-skeleton-title" /><div className="d-grid-4">{[1, 2, 3, 4].map(n => <div key={n} className="d-skeleton d-skeleton-card" />)}</div><div className="d-skeleton d-skeleton-chart" /></div>; }
 export function downloadFile(filename: string, text: string, type = "text/plain;charset=utf-8") { const url = URL.createObjectURL(new Blob([text], { type })); const link = document.createElement("a"); link.href = url; link.download = filename; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
 export function csvFile(filename: string, rows: (string | number | null | undefined)[][]) { downloadFile(filename, "\uFEFF" + rows.map(row => row.map(csvCell).join(",")).join("\r\n"), "text/csv;charset=utf-8"); }
 export function ExportButton({ onClick }: { onClick: () => void }) { return <Button onClick={onClick}><ArrowDownToLine size={14} />내보내기</Button>; }
-export function TextLink({ children, onClick }: { children: ReactNode; onClick: () => void }) { return <button className="d-text-link" onClick={onClick}>{children}<ArrowRight size={14} /></button>; }
+export function TextLink({ children, onClick }: { children: ReactNode; onClick: () => void }) { return <button type="button" className="d-text-link" onClick={onClick}>{children}<ArrowRight size={14} /></button>; }
 export function dateLabel(value: string) { return new Date(value).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }); }
 export function numberLabel(value: number) { return new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 }).format(value); }
 export const colors = ["var(--lumen-chart-1)", "var(--lumen-chart-2)", "var(--lumen-chart-3)", "var(--lumen-chart-4)", "var(--lumen-chart-5)", "var(--lumen-muted)"];

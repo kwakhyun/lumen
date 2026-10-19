@@ -1,0 +1,33 @@
+"use client";
+
+/* eslint-disable @next/next/no-html-link-for-pages -- Preserve full-document navigation for deployed Vinext. */
+
+import { useMemo, type ReactNode } from "react";
+import { ArrowRight, ArrowUpRight, Info, ListChecks, Plus, Search, Sparkles } from "lucide-react";
+import type { Answer, Metrics, Prompt, SiteState } from "@/lib/product-types";
+import MetricGuide from "../metric-guide";
+import { hasOnlyUngroundedAnswers } from "../measurement";
+import { completedAnswersByPrompt, intentNames, ownMention } from "../prompt-evidence";
+import { Badge, Button, Empty, Panel, TextLink, TrendChart, numberLabel } from "../ui";
+
+export default function Overview({ state, metrics, answers, navigate, openPrompt, openForm, filters }: { state: SiteState; metrics: Metrics; answers: Answer[]; navigate: (id: string) => void; openPrompt: (p: Prompt) => void; openForm: (k: "prompt") => void; filters: ReactNode }) {
+  const evidenceByPrompt = useMemo(() => completedAnswersByPrompt(answers), [answers]);
+  const has = metrics.answerCount > 0;
+  const citationUnavailable = hasOnlyUngroundedAnswers(answers);
+  const activeTasks = state.tasks.filter(task => task.status !== "done").slice(0, 2);
+  const recentPrompts = [...state.prompts].sort((a, b) => Number(b.pinned) - Number(a.pinned)).slice(0, 5);
+  return <>
+    <div className="d-briefing-grid">
+      <div className="d-pulse-main">
+        <div className="d-pulse-hero"><h1 className="d-pulse-title">답변을 읽고, 다음 행동을 정하세요.</h1><p className="d-pulse-description">고객이 무엇을 묻고, AI가 어떤 근거로 브랜드를 소개하는지.<br />숫자 너머의 답변에서 더 나은 다음 기회를 발견하세요.</p><Button variant="primary" onClick={() => navigate("prompts")}>근거 확인하기<ArrowRight size={18} /></Button></div>
+        <section className="d-pulse-evidence" aria-label="브랜드 언급률 추이"><div className="d-pulse-chart-head"><div><h2>브랜드 언급률<span title="최근 완료 수집의 전체 답변 중 브랜드가 언급된 답변의 비율입니다." tabIndex={0}><Info size={17} /></span></h2><p>{citationUnavailable ? "Gemini API 일반 응답 기준. 웹 검색을 사용하지 않습니다." : "AI API 답변에서 우리 브랜드가 언급된 비율"}</p></div>{filters}</div><div className="d-pulse-value">{has ? numberLabel(metrics.mentionRate) : "—"}{has && <small>%</small>}<span>{has ? `${metrics.answerCount}개 완료 답변 기준` : "첫 수집을 기다리고 있어요"}</span></div>{has ? <TrendChart data={metrics.series.map(point => ({ date: point.date, value: point.mentionRate }))} label="브랜드 언급률" /> : <Empty title="첫 답변이 다음 기회의 출발점이에요" text="고객의 질문을 등록하고 수집을 시작하면 브랜드 언급률과 추이가 나타납니다." action={<Button onClick={() => openForm("prompt")}><Plus size={16} />질문 추가</Button>} />}</section>
+        <div className="d-inline-stats"><div><span>답변 내 점유율</span><strong>{has ? `${numberLabel(metrics.shareOfVoice)}%` : "—"}</strong><small>등록한 {metrics.brands.length}개 브랜드 간 비교</small></div><div><span>브랜드 인용률</span><strong className={citationUnavailable ? "d-stat-text" : undefined}>{citationUnavailable ? "인용 미제공" : has ? `${numberLabel(metrics.citationRate)}%` : "—"}</strong><small>{citationUnavailable ? "검색 출처를 측정한 값이 아닙니다" : "제공자가 표시한 출처 기준"}</small></div><div><span>평균 등장 순서</span><strong>{metrics.averageRank === null ? "—" : `${numberLabel(metrics.averageRank)}번째`}</strong><small>브랜드가 등장한 답변 기준</small></div></div>
+      </div>
+      <aside className="d-pulse-aside"><h2>다음 행동</h2><p>확인한 근거를 작은 실행으로 이어가세요.<br />실행 보드에 기록한 작업을 보여드립니다.</p>{activeTasks.length ? activeTasks.map(task => <article className="d-next-action" key={task.id}><span className="d-next-action-icon"><ListChecks size={23} /></span><div><h3>{task.title}</h3><p>{task.description}</p><Badge tone={task.priority === "high" ? "amber" : "gray"}>{task.priority === "high" ? "우선 확인" : task.status === "in_progress" ? "진행 중" : "시작 전"}</Badge></div></article>) : <article className="d-next-action"><span className="d-next-action-icon"><Search size={23} /></span><div><h3>{has ? "근거에서 개선할 점 찾기" : "고객의 질문부터 정하기"}</h3><p>{has ? "원문에서 부족한 설명이나 새로운 비교 기준을 확인하고, 직접 실행할 작업으로 기록해 보세요." : "우리 브랜드를 직접 물어보기보다 고객이 문제를 해결하며 묻는 질문으로 시작해 보세요."}</p><TextLink onClick={() => navigate(has ? "prompts" : "personas")}>{has ? "수집된 답변 읽기" : "고객 관점 정의하기"}</TextLink></div></article>}<article className="d-next-action"><span className="d-next-action-icon"><Sparkles size={23} /></span><div><h3>근거를 함께 읽는 어시스턴트</h3><p>수집된 답변과 지표를 바탕으로 어떤 콘텐츠를 먼저 보완할지 살펴보세요.</p><TextLink onClick={() => navigate("assistant")}>어시스턴트 열기</TextLink></div></article><TextLink onClick={() => navigate("actions")}>실행 보드 보기</TextLink></aside>
+    </div>
+    <nav className="d-workflow" aria-label="분석 작업 흐름"><a href="/dashboard/prompts" className={!has ? "current" : ""}><span className="d-workflow-number">1</span><div><strong>질문 정의</strong><small>고객의 상황을 질문으로</small></div></a><a href={citationUnavailable ? "/dashboard/prompts" : "/dashboard/sources"} className={has ? "current" : ""}><span className="d-workflow-number">2</span><div><strong>근거 확인</strong><small>{citationUnavailable ? "원문과 수집 조건 읽기" : "원문과 인용을 함께 읽기"}</small></div></a><a href="/dashboard/actions"><span className="d-workflow-number">3</span><div><strong>실행 기록</strong><small>발견한 것을 다음 행동으로</small></div></a></nav>
+    <Panel title="이번에 확인할 질문" subtitle={citationUnavailable ? "Gemini API 일반 응답입니다. 실제 소비자 앱이나 검색 결과와 다릅니다." : "최신 수집의 답변과 인용 근거를 살펴보세요."} action={<TextLink onClick={() => navigate("prompts")}>전체 보기</TextLink>}>{recentPrompts.length ? <><div className="d-table-wrap"><table className="d-table"><thead><tr><th>질문</th><th>검색 의도</th><th>완료 답변</th><th>브랜드 언급</th><th>인용 근거</th><th /></tr></thead><tbody>{recentPrompts.map(prompt => { const rows = evidenceByPrompt.get(prompt.id) || []; const mentions = rows.filter(answer => ownMention(answer, state.site)?.mentioned).length; return <tr key={prompt.id}><td className="d-td-title"><button className="d-table-title" onClick={() => openPrompt(prompt)}>{prompt.text}</button><div className="d-table-sub">{prompt.topic || "일반"}</div></td><td><Badge tone={prompt.intent === "comparison" ? "purple" : "gray"}>{intentNames[prompt.intent]}</Badge></td><td>{rows.length}개</td><td>{rows.length ? `${mentions} / ${rows.length}` : "—"}</td><td>{hasOnlyUngroundedAnswers(rows) ? "인용 미제공" : rows.length ? `${rows.reduce((sum, answer) => sum + answer.citations.length, 0)}개` : "—"}</td><td><button className="d-icon-button" aria-label={`${prompt.text} 답변 읽기`} onClick={() => openPrompt(prompt)}><ArrowUpRight size={18} /></button></td></tr>; })}</tbody></table></div><div className="d-table-footer"><span>활성 질문 {state.prompts.filter(prompt => prompt.active).length}개</span><span>수집 커버리지 {numberLabel(metrics.coverage)}% · 질문 중 답변이 수집된 비율</span></div></> : <Empty title="어떤 질문에서 발견되고 싶나요?" text="고객이 제품을 찾거나 비교할 때 묻는 질문을 등록해 보세요." action={<Button onClick={() => openForm("prompt")}><Plus size={16} />첫 질문 추가</Button>} />}</Panel>
+    <MetricGuide state={state} />
+  </>;
+}
+

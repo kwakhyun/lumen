@@ -1,13 +1,19 @@
 import { z } from 'zod';
 
 export const BACKUP_FORMAT = 'lumen-workspace-backup';
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
+export const LEGACY_BACKUP_VERSION = 1;
 export const BACKUP_MAX_BYTES = 8 * 1024 * 1024;
 export const BACKUP_MAX_ROWS = 20000;
-export const BACKUP_MIGRATIONS = [
+export const LEGACY_BACKUP_MIGRATIONS = [
   { name: '0000_yummy_hannibal_king.sql', sha256: 'a03dba2214e85b1f91d9d7aaaccbf916aa2462ce9eaf76754631d15877372f1b' },
   { name: '0001_rapid_songbird.sql', sha256: '2820f179dd24c16a09d34ec7254b34995268f73ff015fc6f61585ad0fe4601b2' },
   { name: '0002_nostalgic_wasp.sql', sha256: 'a233d6a33f208b4889df5ac57dfd1f694e10ed71744f96b0def8142f4783dde2' },
+] as const;
+// Append new, checksum-pinned migrations here; the V1 manifest stays immutable.
+export const BACKUP_MIGRATIONS = [
+  ...LEGACY_BACKUP_MIGRATIONS,
+  { name: '0003_closed_santa_claus.sql', sha256: 'd1e95bbc9d9b606e51322a7caadae770e653c58d99d757f7f43d0f54915b338e' },
 ] as const;
 export class BackupError extends Error {
   code: string;
@@ -28,6 +34,13 @@ const promptIds = jsonText(z.array(id).max(1000), 50000).nullable();
 const citation = z.object({ url: str(10000), title: str(10000), domain: str(300), startIndex: num, endIndex: num, provenance: z.enum(['provider_annotation', 'synthetic']) }).strict();
 const mention = z.object({ name: str(500), domain: str(300), mentioned: z.boolean(), firstPosition: num.nullable(), rank: num.nullable(), cited: z.boolean() }).strict();
 const report = z.object({ startDate: str(10), endDate: str(10), totalSessions: num, totalUsers: num, totalViews: num, aiSessions: num, rows: z.array(z.object({ date: str(20), source: str(500), medium: str(500), sessions: num, views: num }).strict()).max(10000), dataQuality: z.object({ subjectToThresholding: z.boolean(), dataLossFromOtherRow: z.boolean(), sampled: z.boolean() }).strict(), timeZone: str(100).nullable().optional() }).strict();
+const experimentSnapshot = z.object({
+  version: z.literal('lumen-experiment-v1'), mode,
+  brands: z.array(z.object({ name: str(200).min(1), domain: str(300).min(1) }).strict()).min(1).max(21),
+  cells: z.array(z.object({ question: str(5000).min(1), model: str(100).min(1), provider: str(100).min(1), status: z.enum(['completed', 'failed']), mentioned: z.boolean(), cited: z.boolean() }).strict()).min(1).max(60),
+  capturedAt: date,
+}).strict();
+type ExperimentSnapshot = z.infer<typeof experimentSnapshot>;
 const siteFields = { id, name: str(200), domain: str(300), description: str(5000), industry: str(200), language: str(100), country: str(100), mode, created_at: date, updated_at: date };
 const child = { id, site_id: id };
 const table = (shape: z.ZodRawShape, maxRows: number, maxBytes: number) => ({ schema: z.object(shape).strict(), maxRows, maxBytes });
@@ -48,27 +61,38 @@ export const BACKUP_TABLES = {
   operation_alerts: table({ ...child, execution_id: id.nullable(), severity: z.enum(['warning', 'critical']), code: str(200), title: str(500), message: str(5000), status: z.enum(['open', 'acknowledged', 'resolved']), created_at: date, updated_at: date }, 1000, 256 * KiB),
   operation_audit: table({ ...child, action: str(200), subject_id: id.nullable(), summary: str(5000), created_at: date }, 4000, 512 * KiB),
   ga4_connections: table({ site_id: id, property_id: z.string().regex(/^\d{1,20}$/).nullable(), property_name: str(200).nullable(), report: jsonText(report, 500000).nullable(), last_synced_at: nullableDate, created_at: date, updated_at: date }, 1, 512 * KiB),
+  improvement_experiments: table({ ...child, title: str(200).min(3), hypothesis: str(2000).min(5), intervention: str(2000).min(3), metric: z.enum(['mentionRate', 'citationRate']), target_delta: z.number().int().min(1).max(100), status: z.enum(['draft', 'observing', 'reviewed']), baseline_run_id: id, followup_run_id: id.nullable(), baseline_snapshot: jsonText(experimentSnapshot, 500000), followup_snapshot: jsonText(experimentSnapshot, 500000).nullable(), notes: str(4000), created_at: date, updated_at: date }, 100, 512 * KiB),
 } as const;
 export type BackupTableName = keyof typeof BACKUP_TABLES;
 export type BackupRow = Record<string, string | number | null>;
 export type BackupTables = Record<BackupTableName, BackupRow[]>;
 export const BACKUP_TABLE_NAMES = Object.keys(BACKUP_TABLES) as BackupTableName[];
-const tableSchemas = Object.fromEntries(BACKUP_TABLE_NAMES.map(name => [name, z.array(BACKUP_TABLES[name].schema).max(BACKUP_TABLES[name].maxRows)]));
-const countSchemas = Object.fromEntries(BACKUP_TABLE_NAMES.map(name => [name, num]));
-const payloadSchema = z.object({
-  format: z.literal(BACKUP_FORMAT), version: z.literal(BACKUP_VERSION),
-  schemaMigrations: z.array(z.object({ name: str(100), sha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict()).length(BACKUP_MIGRATIONS.length),
-  exportedAt: date,
-  scope: z.object({ kind: z.literal('workspace'), sourceSiteId: id }).strict(),
-  policy: z.object({ credentials: z.literal('excluded'), restoration: z.literal('isolated-disabled-copy') }).strict(),
-  counts: z.object(countSchemas).strict(), tables: z.object(tableSchemas).strict(),
-}).strict();
-const backupSchema = payloadSchema.extend({ integrity: z.object({ algorithm: z.literal('SHA-256'), digest: z.string().regex(/^[a-f0-9]{64}$/) }).strict() });
+// Freeze the historical table inventory as well as its migration manifest.
+export const LEGACY_BACKUP_TABLE_NAMES = ['sites', 'prompts', 'competitors', 'runs', 'answers', 'documents', 'tasks', 'personas', 'traffic', 'collection_schedules', 'scheduled_executions', 'operation_alerts', 'operation_audit', 'ga4_connections'] as const satisfies readonly BackupTableName[];
+type LegacyBackupTableName = typeof LEGACY_BACKUP_TABLE_NAMES[number];
+function backupSchemaFor(version: typeof BACKUP_VERSION | typeof LEGACY_BACKUP_VERSION) {
+  const names = version === LEGACY_BACKUP_VERSION ? LEGACY_BACKUP_TABLE_NAMES : BACKUP_TABLE_NAMES;
+  const manifest = version === LEGACY_BACKUP_VERSION ? LEGACY_BACKUP_MIGRATIONS : BACKUP_MIGRATIONS;
+  const tableSchemas = Object.fromEntries(names.map(name => [name, z.array(BACKUP_TABLES[name].schema).max(BACKUP_TABLES[name].maxRows)]));
+  const countSchemas = Object.fromEntries(names.map(name => [name, num]));
+  return z.object({
+    format: z.literal(BACKUP_FORMAT), version: z.literal(version),
+    schemaMigrations: z.array(z.object({ name: str(100), sha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict()).length(manifest.length),
+    exportedAt: date,
+    scope: z.object({ kind: z.literal('workspace'), sourceSiteId: id }).strict(),
+    policy: z.object({ credentials: z.literal('excluded'), restoration: z.literal('isolated-disabled-copy') }).strict(),
+    counts: z.object(countSchemas).strict(), tables: z.object(tableSchemas).strict(),
+    integrity: z.object({ algorithm: z.literal('SHA-256'), digest: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
+  }).strict();
+}
+const currentBackupSchema = backupSchemaFor(BACKUP_VERSION);
+const legacyBackupSchema = backupSchemaFor(LEGACY_BACKUP_VERSION);
 export type WorkspaceBackup = {
-  format: typeof BACKUP_FORMAT; version: typeof BACKUP_VERSION; schemaMigrations: { name: string; sha256: string }[];
+  format: typeof BACKUP_FORMAT; version: typeof BACKUP_VERSION | typeof LEGACY_BACKUP_VERSION; schemaMigrations: { name: string; sha256: string }[];
   exportedAt: string; scope: { kind: 'workspace'; sourceSiteId: string };
   policy: { credentials: 'excluded'; restoration: 'isolated-disabled-copy' };
-  counts: Record<BackupTableName, number>; tables: BackupTables;
+  counts: Record<LegacyBackupTableName, number> & Partial<Record<'improvement_experiments', number>>;
+  tables: Record<LegacyBackupTableName, BackupRow[]> & Partial<Record<'improvement_experiments', BackupRow[]>>;
   integrity: { algorithm: 'SHA-256'; digest: string };
 };
 /** Canonical JSON is used for corruption detection, not authentication or encryption. */
@@ -84,8 +108,9 @@ export function validateRelationships(data: WorkspaceBackup): void {
   if (tables.sites.length !== 1 || tables.sites[0].id !== scope.sourceSiteId) fail();
   let total = 0;
   const ids = new Map<BackupTableName, Set<string>>();
-  for (const name of BACKUP_TABLE_NAMES) {
-    const rows = tables[name]; total += rows.length;
+  const names = data.version === LEGACY_BACKUP_VERSION ? LEGACY_BACKUP_TABLE_NAMES : BACKUP_TABLE_NAMES;
+  for (const name of names) {
+    const rows = tables[name]!; total += rows.length;
     if (data.counts[name] !== rows.length) fail();
     const seen = new Set<string>(); ids.set(name, seen);
     for (const row of rows) {
@@ -118,13 +143,30 @@ export function validateRelationships(data: WorkspaceBackup): void {
     if (e.schedule_id !== null) { const key = `${e.schedule_id}:${e.scheduled_for}`; if (occurrenceKeys.has(key)) fail(); occurrenceKeys.add(key); }
   }
   for (const alert of tables.operation_alerts) if (!exists('scheduled_executions', alert.execution_id)) fail('Alert references a missing execution.');
+  for (const experiment of tables.improvement_experiments || []) {
+    if (!exists('runs', experiment.baseline_run_id) || !exists('runs', experiment.followup_run_id)) fail('Experiment references a missing run.');
+    if ((experiment.followup_run_id === null) !== (experiment.followup_snapshot === null)) fail('Experiment follow-up evidence is incomplete.');
+    if (experiment.status === 'reviewed' && experiment.followup_run_id === null) fail('Reviewed experiment has no follow-up evidence.');
+    const baseline = JSON.parse(String(experiment.baseline_snapshot)) as ExperimentSnapshot;
+    const followup = experiment.followup_snapshot === null ? null : JSON.parse(String(experiment.followup_snapshot)) as ExperimentSnapshot;
+    const cohort = (snapshot: ExperimentSnapshot) => snapshot.cells.map(cell => JSON.stringify([cell.question, cell.model, cell.provider])).sort();
+    for (const [snapshot, runId] of [[baseline, experiment.baseline_run_id], [followup, experiment.followup_run_id]] as const) {
+      if (!snapshot) continue;
+      if (snapshot.mode !== tables.sites[0].mode || snapshot.mode !== runsById.get(runId)?.mode) fail('Experiment snapshot and run modes differ.');
+      if (new Set(cohort(snapshot)).size !== snapshot.cells.length) fail('Experiment contains duplicate cohort cells.');
+    }
+    if (followup && (canonicalJson(baseline.brands) !== canonicalJson(followup.brands) || canonicalJson(cohort(baseline)) !== canonicalJson(cohort(followup)))) fail('Experiment follow-up cohort differs from its baseline.');
+  }
   // answers.prompt_id intentionally has no FK: deleted prompts retain historical answers.
 }
 export async function validateBackup(input: unknown): Promise<WorkspaceBackup> {
-  const result = backupSchema.safeParse(input);
+  const version = input !== null && typeof input === 'object' && !Array.isArray(input) ? (input as { version?: unknown }).version : undefined;
+  if (version !== LEGACY_BACKUP_VERSION && version !== BACKUP_VERSION) throw new BackupError('backup_schema_unsupported', 'Backup schema version is not supported.');
+  const result = (version === LEGACY_BACKUP_VERSION ? legacyBackupSchema : currentBackupSchema).safeParse(input);
   if (!result.success) throw new BackupError('backup_invalid', 'Backup data is invalid or incomplete.', 400, result.error.issues.slice(0, 20).map(issue => ({ code: issue.code, path: issue.path }))); 
   const data = result.data as WorkspaceBackup;
-  if (canonicalJson(data.schemaMigrations) !== canonicalJson(BACKUP_MIGRATIONS)) throw new BackupError('backup_schema_unsupported', 'Backup schema version is not supported.');
+  const manifest = version === LEGACY_BACKUP_VERSION ? LEGACY_BACKUP_MIGRATIONS : BACKUP_MIGRATIONS;
+  if (canonicalJson(data.schemaMigrations) !== canonicalJson(manifest)) throw new BackupError('backup_schema_unsupported', 'Backup schema version is not supported.');
   if (new TextEncoder().encode(canonicalJson(data)).byteLength > BACKUP_MAX_BYTES) throw new BackupError('backup_too_large', 'Backup exceeds the supported byte limit.', 413);
   validateRelationships(data);
   const { integrity, ...payload } = data;

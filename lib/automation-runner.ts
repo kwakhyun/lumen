@@ -8,7 +8,8 @@ import { ProductError } from './product-validation';
 import { nextOccurrence } from './automation-time';
 import { alert, audit, ownedSchedule, publicExecution } from './operations-server';
 import type { ScheduleRow } from './operations-server';
-import type { AutomationTickResult } from './operations-types';
+import type { AutomationTickResult, TickEntryPoint } from './operations-types';
+import { beginTickObservation, finishTickObservation } from './operations-observability';
 
 type Execution=typeof t.scheduledExecutions.$inferSelect;
 type Configuration={models:string[];promptIds:string[]|null};
@@ -78,11 +79,19 @@ async function processExecution(execution:Execution){
 async function observeStalled(ownerId?:string){const stuck=await getDb().select().from(t.scheduledExecutions).where(and(inArray(t.scheduledExecutions.status,['queued','running']),lte(t.scheduledExecutions.leaseUntil,Date.now()),lte(t.scheduledExecutions.updatedAt,new Date(Date.now()-30*60000).toISOString()),sql`NOT (${expiredExecution(Date.now())})`,scope(t.scheduledExecutions.ownerId,ownerId))).limit(20);for(const e of stuck)await alert(e.ownerId,e.siteId,e.id,'execution_stalled','수집이 지연되고 있습니다','30분 이상 진행 기록이 없어 서버 수집기가 남은 작업을 이어서 처리합니다. 이미 요청한 답변을 자동으로 다시 요청하지 않습니다.');}
 
 /** Trusted-server entry point. Omit ownerId only after an operator identity or service-secret check. */
-export async function tickDueSchedules(options:{ownerId?:string;limit?:number;executionId?:string}={}):Promise<AutomationTickResult>{
+type TickOptions={ownerId?:string;limit?:number;executionId?:string;entryPoint?:TickEntryPoint};
+export async function tickDueSchedules(options:TickOptions={}):Promise<AutomationTickResult>{
   if(options.ownerId!==undefined&&!options.ownerId)throw new ProductError(401,'인증된 소유자 정보가 필요합니다.','unauthenticated');
-  const limit=Math.min(2,Math.max(1,options.limit||1)),db=getDb(),tickId=uid(),key=options.ownerId?`owner:${options.ownerId}`:'service',token=uid(),date=now();
+  const observation={id:uid(),ownerId:options.ownerId,entryPoint:options.entryPoint,startedAt:Date.now()};
+  const result:AutomationTickResult={tickId:observation.id,queued:0,processed:0,completed:0,failed:0,blocked:0,continuation:false,retryAfterSeconds:0,skipped:false,executionIds:[],runIds:[]};
+  const recorded=await beginTickObservation(observation);
+  try{const outcome=await performTick(options,result);if(recorded)await finishTickObservation(observation,outcome);return outcome;}
+  catch(error){if(recorded)await finishTickObservation(observation,result,safeFailure(error).code);throw error;}
+}
+async function performTick(options:TickOptions,result:AutomationTickResult):Promise<AutomationTickResult>{
+  const limit=Math.min(2,Math.max(1,options.limit||1)),db=getDb(),tickId=result.tickId,key=options.ownerId?`owner:${options.ownerId}`:'service',token=uid(),date=now();
   const heartbeat=await db.insert(t.operationHeartbeats).values({id:key,ownerId:options.ownerId||null,leaseToken:token,leaseUntil:Date.now()+120000,lastStartedAt:date,lastTickId:tickId}).onConflictDoUpdate({target:t.operationHeartbeats.id,set:{leaseToken:token,leaseUntil:Date.now()+120000,lastStartedAt:date,lastTickId:tickId},setWhere:lte(t.operationHeartbeats.leaseUntil,Date.now())}).returning();
-  const result:AutomationTickResult={tickId,queued:0,processed:0,completed:0,failed:0,blocked:0,continuation:false,retryAfterSeconds:0,skipped:!heartbeat.length,executionIds:[],runIds:[]};
+  result.skipped=!heartbeat.length;
   if(!heartbeat.length)return {...result,continuation:true,retryAfterSeconds:120};
   try{
     await expireSchedules(options.ownerId);

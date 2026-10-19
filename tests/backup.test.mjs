@@ -20,7 +20,7 @@ registerHooks({ resolve(specifier, context, next) {
 const format = await import('../lib/backup-format.ts');
 const { restoreToEmptyDatabase, RESTORE_OWNER } = await import('../lib/backup-restore.ts');
 let mf, db, route, exported;
-const ids = Object.fromEntries(['site','other','prompt','deletedPrompt','run','pendingRun','answer','pendingAnswer','document','task','persona','traffic','competitor','schedule','alert','audit'].map(key => [key,crypto.randomUUID()]));
+const ids = Object.fromEntries(['site','other','prompt','deletedPrompt','run','pendingRun','followupRun','otherRun','answer','pendingAnswer','followupAnswer','document','task','persona','traffic','competitor','schedule','alert','audit','experiment','otherExperiment'].map(key => [key,crypto.randomUUID()]));
 const at = '2026-10-18T09:00:00.000Z';
 globalThis.__backupTestEnv = {};
 globalThis.__backupTestHeaders = new Headers();
@@ -28,6 +28,8 @@ async function migrate(target) { for (const file of readdirSync(path.join(root, 
 async function insert(table, row) { const keys = Object.keys(row); return db.prepare(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(()=>'?').join(',')})`).bind(...keys.map(key=>row[key])).run(); }
 async function call(siteId=ids.site,user='alice',extra='') { globalThis.__backupTestHeaders=new Headers(user?{'oai-authenticated-user-id':user,'oai-authenticated-user-email':user+'@example.test'}:{}); return route.GET(new Request(`https://lumen.test/api/backup?siteId=${siteId}${extra}`)); }
 async function resign(input) { const {integrity,...payload}=input; return {...payload,integrity:{algorithm:'SHA-256',digest:await format.sha256(format.canonicalJson(payload))}}; }
+async function legacyCopy(input) { const legacy=structuredClone(input);legacy.version=1;legacy.schemaMigrations=structuredClone(format.LEGACY_BACKUP_MIGRATIONS);delete legacy.tables.improvement_experiments;delete legacy.counts.improvement_experiments;return resign(legacy); }
+const experimentSnapshot = {version:'lumen-experiment-v1',mode:'live',brands:[{name:'Own brand',domain:'alice.example'}],cells:[{question:'Private question',model:'gpt-4.1-mini',provider:'OpenAI API',status:'completed',mentioned:true,cited:false}],capturedAt:at};
 before(async()=>{
   mf = new Miniflare({ modules:true,script:'export default {fetch(){return new Response("ok")}}',d1Databases:{DB:'backup-source',RESTORE:'backup-target'} });
   db = await mf.getD1Database('DB'); globalThis.__backupTestEnv.DB=db; await migrate(db);
@@ -37,8 +39,11 @@ before(async()=>{
   await insert('competitors',{id:ids.competitor,site_id:ids.site,name:'Rival',domain:'rival.example',created_at:at});
   await insert('runs',{id:ids.run,site_id:ids.site,mode:'live',status:'completed',models:'["gpt-4.1-mini"]',total:1,completed:1,created_at:at,completed_at:at,lease_token:'secret_run_lease',lease_until:12345});
   await insert('runs',{id:ids.pendingRun,site_id:ids.site,mode:'live',status:'running',models:'["gemini-3.8-flash"]',total:1,created_at:at,lease_token:'secret_running_lease',lease_until:9999999999999});
+  await insert('runs',{id:ids.followupRun,site_id:ids.site,mode:'live',status:'completed',models:'["gpt-4.1-mini"]',total:1,completed:1,created_at:at,completed_at:at});
+  await insert('runs',{id:ids.otherRun,site_id:ids.other,mode:'live',status:'completed',models:'["gpt-4.1-mini"]',total:0,created_at:at,completed_at:at});
   await insert('answers',{id:ids.answer,site_id:ids.site,run_id:ids.run,prompt_id:ids.prompt,prompt_text:'Private question',model:'gpt-4.1-mini',provider:'OpenAI API',mode:'live',status:'completed',text:'Private original answer',mentions:JSON.stringify([{id:ids.site,ownerId:'secret_nested_owner',trackingKey:'secret_nested_tracking',description:'secret_nested_description',createdAt:at,name:'Own brand',domain:'alice.example',mentioned:true,firstPosition:0,rank:1,cited:false},{id:ids.competitor,siteId:ids.site,createdAt:at,name:'Rival',domain:'rival.example',mentioned:false,firstPosition:null,rank:null,cited:false}]),created_at:at,completed_at:at});
   await insert('answers',{id:ids.pendingAnswer,site_id:ids.site,run_id:ids.pendingRun,prompt_id:ids.deletedPrompt,prompt_text:'Historical deleted question',model:'gemini-3.8-flash',provider:'Gemini API',mode:'live',status:'processing',created_at:at});
+  await insert('answers',{id:ids.followupAnswer,site_id:ids.site,run_id:ids.followupRun,prompt_id:ids.prompt,prompt_text:'Private question',model:'gpt-4.1-mini',provider:'OpenAI API',mode:'live',status:'completed',text:'Private follow-up answer',created_at:at,completed_at:at});
   await insert('documents',{id:ids.document,site_id:ids.site,kind:'content',title:'Evidence',content:'generation-0',mode:'live',created_at:at});
   await insert('tasks',{id:ids.task,site_id:ids.site,title:'Private task',created_at:at,updated_at:at});
   await insert('personas',{id:ids.persona,site_id:ids.site,name:'Researcher',created_at:at});
@@ -54,6 +59,9 @@ before(async()=>{
   await insert('ai_usage_reservations',{id:'secret_reservation',owner_id:'alice',operation:'private',units:1,claim_token:'secret_claim',created_at:at});
   await insert('oauth_states',{state_hash:'secret_state',owner_id:'alice',site_id:ids.site,verifier_cipher:'secret_verifier',redirect_uri:'https://lumen.test/callback',expires_at:123});
   await insert('operation_heartbeats',{id:'owner:alice',owner_id:'alice',lease_token:'secret_heartbeat'});
+  await insert('operation_ticks',{id:'secret_runtime_tick',owner_id:'alice',entry_point:'secret_runtime_entry',status:'completed',started_at:at,finished_at:at});
+  await insert('improvement_experiments',{id:ids.experiment,site_id:ids.site,title:'Evidence comparison',hypothesis:'A direct answer improves citations.',intervention:'Publish the direct answer.',metric:'citationRate',target_delta:10,status:'reviewed',baseline_run_id:ids.run,followup_run_id:ids.followupRun,baseline_snapshot:JSON.stringify(experimentSnapshot),followup_snapshot:JSON.stringify({...experimentSnapshot,cells:[{...experimentSnapshot.cells[0],cited:true}]}),notes:'Keep frozen evidence.',created_at:at,updated_at:at});
+  await insert('improvement_experiments',{id:ids.otherExperiment,site_id:ids.other,title:'private-other-tenant',hypothesis:'Another private hypothesis.',intervention:'Keep other tenant separate.',metric:'mentionRate',target_delta:5,status:'draft',baseline_run_id:ids.otherRun,baseline_snapshot:JSON.stringify(experimentSnapshot),notes:'private-other-tenant',created_at:at,updated_at:at});
 });
 after(async()=>{await mf?.dispose();});
 test('backup requires authenticated owner and rejects scope overrides',async()=>{assert.equal((await call(ids.site,null)).status,401);assert.equal((await call(ids.site,'bob')).status,404);assert.equal((await call(ids.site,'alice','&ownerId=bob')).status,400);assert.equal((await call(ids.site,'alice','&siteId='+ids.other)).status,400);});
@@ -61,15 +69,15 @@ test('complete owner snapshot explicitly excludes secrets and has verified diges
   const before = await db.prepare('SELECT count(*) AS n FROM quotas').first();
   const result = await call();assert.equal(result.status,200);assert.match(result.headers.get('Content-Disposition'),/^attachment/);assert.equal(result.headers.get('Cache-Control'),'private, no-store');
   const text=await result.text();assert.doesNotMatch(text,/secret_|private-other-tenant|owner_id|tracking_key|lease_token|refresh_cipher|access_cipher|claim_token|verifier_cipher/);
-  exported=await format.validateBackup(JSON.parse(text));assert.equal(Object.keys(exported.tables).length,14);assert.equal(exported.counts.answers,2);assert.equal(exported.tables.answers.find(a=>a.status==='completed').text,'Private original answer');assert.equal((await db.prepare('SELECT count(*) AS n FROM quotas').first()).n,before.n);
+  exported=await format.validateBackup(JSON.parse(text));assert.equal(exported.version,2);assert.equal(Object.keys(exported.tables).length,15);assert.equal(exported.counts.answers,3);assert.equal(exported.counts.improvement_experiments,1);assert.equal(exported.tables.answers.find(a=>a.id===ids.answer).text,'Private original answer');assert.equal((await db.prepare('SELECT count(*) AS n FROM quotas').first()).n,before.n);
 });
 test('legacy full-brand mentions are projected to metric fields without changing historical values',async()=>{
- const backup=await(await call()).json();const answer=backup.tables.answers.find(a=>a.status==='completed');const mentions=JSON.parse(answer.mentions);
+ const backup=await(await call()).json();const answer=backup.tables.answers.find(a=>a.id===ids.answer);const mentions=JSON.parse(answer.mentions);
  assert.deepEqual(mentions,[{name:'Own brand',domain:'alice.example',mentioned:true,firstPosition:0,rank:1,cited:false},{name:'Rival',domain:'rival.example',mentioned:false,firstPosition:null,rank:null,cited:false}]);
  const stored=JSON.parse((await db.prepare('SELECT mentions FROM answers WHERE id=?').bind(ids.answer).first()).mentions);assert.equal(stored[0].trackingKey,'secret_nested_tracking');
  const {extractMentions}=await import('../lib/metrics.ts');const future=extractMentions('Own brand',[],[{id:ids.site,ownerId:'secret_future_owner',trackingKey:'secret_future_tracking',name:'Own brand',domain:'alice.example'}]);
  assert.deepEqual(Object.keys(future[0]).sort(),['name','domain','mentioned','firstPosition','rank','cited'].sort());assert.doesNotMatch(JSON.stringify(future),/secret_|trackingKey|ownerId/);
- const hostile=structuredClone(backup);hostile.tables.answers.find(a=>a.status==='completed').mentions=JSON.stringify([{...mentions[0],ownerId:'secret_import_injection'}]);await assert.rejects(format.validateBackup(await resign(hostile)),e=>e.code==='backup_invalid');
+ const hostile=structuredClone(backup);hostile.tables.answers.find(a=>a.id===ids.answer).mentions=JSON.stringify([{...mentions[0],ownerId:'secret_import_injection'}]);await assert.rejects(format.validateBackup(await resign(hostile)),e=>e.code==='backup_invalid');
 });
 test('invalid stored mention values fail with code/path diagnostics only',async()=>{
  const original=(await db.prepare('SELECT mentions FROM answers WHERE id=?').bind(ids.answer).first()).mentions;
@@ -90,6 +98,37 @@ test('invalid digest, extra credential fields, missing rows and foreign parents 
   const cross=structuredClone(exported);cross.tables.tasks[0].site_id=ids.other;await assert.rejects(format.validateBackup(await resign(cross)),/workspace boundary/);
   const foreign=structuredClone(exported);foreign.tables.answers[0].run_id=crypto.randomUUID();await assert.rejects(format.validateBackup(await resign(foreign)),/parent run/);
 });
+test('V1 keeps its exact historical envelope and manifest while unsupported schema prefixes fail',async()=>{
+  const legacy=await legacyCopy(exported),before=format.canonicalJson(legacy);const validated=await format.validateBackup(legacy);
+  assert.equal(format.canonicalJson(validated),before);assert.equal(validated.version,1);assert.equal(validated.tables.improvement_experiments,undefined);assert.equal(validated.schemaMigrations.length,3);
+  for(const change of [
+    value=>{value.schemaMigrations.pop();},
+    value=>{value.schemaMigrations[0].sha256='0'.repeat(64);},
+    value=>{value.schemaMigrations.reverse();},
+    value=>{value.schemaMigrations.push({name:'9999_untrusted.sql',sha256:'0'.repeat(64)});},
+    value=>{value.tables.improvement_experiments=[];value.counts.improvement_experiments=0;},
+    value=>{value.version=3;},
+  ]) {const invalid=structuredClone(legacy);change(invalid);await assert.rejects(format.validateBackup(await resign(invalid)),e=>['backup_invalid','backup_schema_unsupported'].includes(e.code));}
+  const omitted=structuredClone(exported);delete omitted.tables.improvement_experiments;delete omitted.counts.improvement_experiments;await assert.rejects(format.validateBackup(await resign(omitted)),e=>e.code==='backup_invalid');
+  const wrongCurrent=structuredClone(exported);wrongCurrent.schemaMigrations=structuredClone(format.LEGACY_BACKUP_MIGRATIONS);await assert.rejects(format.validateBackup(await resign(wrongCurrent)),e=>['backup_invalid','backup_schema_unsupported'].includes(e.code));
+});
+test('experiment snapshot allowlist, run references and frozen cohort are validated',async()=>{
+  const rejectedChanges=[
+    row=>{row.baseline_run_id=ids.otherRun;},
+    row=>{row.followup_run_id=crypto.randomUUID();},
+    row=>{row.followup_run_id=null;},
+    row=>{row.followup_snapshot=null;row.followup_run_id=null;},
+    row=>{row.target_delta=101;},
+    row=>{const snapshot=JSON.parse(row.baseline_snapshot);snapshot.cells[0].prompt_id=ids.prompt;row.baseline_snapshot=JSON.stringify(snapshot);},
+    row=>{const snapshot=JSON.parse(row.baseline_snapshot);snapshot.access_cipher='secret_never_allowed';row.baseline_snapshot=JSON.stringify(snapshot);},
+    row=>{const snapshot=JSON.parse(row.baseline_snapshot);snapshot.cells.push(snapshot.cells[0]);row.baseline_snapshot=JSON.stringify(snapshot);},
+    row=>{const snapshot=JSON.parse(row.baseline_snapshot);snapshot.mode='demo';row.baseline_snapshot=JSON.stringify(snapshot);},
+    row=>{const snapshot=JSON.parse(row.followup_snapshot);snapshot.brands[0].domain='changed.example';row.followup_snapshot=JSON.stringify(snapshot);},
+    row=>{const snapshot=JSON.parse(row.followup_snapshot);snapshot.cells[0].provider='Different provider';row.followup_snapshot=JSON.stringify(snapshot);},
+  ];
+  for(const change of rejectedChanges){const invalid=structuredClone(exported);change(invalid.tables.improvement_experiments[0]);await assert.rejects(format.validateBackup(await resign(invalid)),e=>e.code==='backup_invalid');}
+  for(const status of ['draft','observing']){const reopened=structuredClone(exported);reopened.tables.improvement_experiments[0].status=status;assert.equal((await format.validateBackup(await resign(reopened))).tables.improvement_experiments[0].status,status);}
+});
 test('restore creates non-executable copy, remaps shared and deleted-question IDs, preserves all data',async()=>{
   const target=await mf.getD1Database('RESTORE');await migrate(target);const originalFetch=globalThis.fetch;globalThis.fetch=()=>{throw Error('No external requests allowed')};
   try {const summary=await restoreToEmptyDatabase(target,exported);assert.equal(summary.foreignKeyViolations,0);assert.equal(summary.integrity,'ok');assert.equal(summary.stoppedAnswers,1);assert.equal(summary.stoppedExecutions,1);assert.equal(summary.externalCalls,0);
@@ -99,6 +138,9 @@ test('restore creates non-executable copy, remaps shared and deleted-question ID
     assert.equal((await target.prepare("SELECT count(*) AS n FROM runs WHERE status IN ('queued','running')").first()).n,0);
     const ga4=await target.prepare('SELECT * FROM ga4_connections').first();assert.equal(ga4.status,'disconnected');assert.equal(ga4.refresh_cipher,null);assert.equal(JSON.parse(ga4.report).timeZone,'Asia/Seoul');
     assert.equal((await target.prepare('SELECT count(*) AS n FROM ai_usage_reservations').first()).n,0);
+    const experiment=await target.prepare('SELECT * FROM improvement_experiments').first();assert.notEqual(experiment.id,ids.experiment);assert.equal(experiment.site_id,site.id);assert.equal(experiment.status,'reviewed');assert.notEqual(experiment.baseline_run_id,ids.run);assert.notEqual(experiment.followup_run_id,ids.followupRun);assert.notEqual(experiment.baseline_run_id,experiment.followup_run_id);assert.equal(JSON.parse(experiment.baseline_snapshot).cells[0].question,'Private question');assert.equal(JSON.parse(experiment.followup_snapshot).cells[0].cited,true);
+    assert.equal((await target.prepare('SELECT count(*) AS n FROM runs WHERE id IN (?,?)').bind(experiment.baseline_run_id,experiment.followup_run_id).first()).n,2);
+    assert.equal((await target.prepare('SELECT count(*) AS n FROM operation_ticks').first()).n,0);
     await assert.rejects(restoreToEmptyDatabase(target,exported),e=>e.code==='restore_target_not_empty');
   }finally{globalThis.fetch=originalFetch;}
 });
@@ -115,6 +157,7 @@ test('row and byte overflow return errors with no attachment or partial backup',
 test('local CLI creates private persisted D1 and prints only count/digest verification',async()=>{
   const dir=mkdtempSync(path.join(tmpdir(),'lumen-backup-test-')),input=path.join(dir,'backup.json'),output=path.join(dir,'restore');
   try{writeFileSync(input,JSON.stringify(exported),{mode:0o600});const result=await promisify(execFile)(process.execPath,['--experimental-strip-types','scripts/verify-backup.mjs','--input',input,'--output',output],{cwd:root,timeout:60000});const summary=JSON.parse(result.stdout);assert.equal(summary.integrity,'ok');assert.equal(summary.sourceDigest,exported.integrity.digest);assert.doesNotMatch(result.stdout,/Private|secret_|prompt_text|owner_id/);assert.equal(statSync(output).mode&0o777,0o700);assert.equal(statSync(path.join(output,'verification.json')).mode&0o777,0o600);
+    const legacy=await legacyCopy(exported),legacyInput=path.join(dir,'legacy.json'),legacyOutput=path.join(dir,'legacy-restore');writeFileSync(legacyInput,JSON.stringify(legacy),{mode:0o600});const legacyResult=await promisify(execFile)(process.execPath,['--experimental-strip-types','scripts/verify-backup.mjs','--input',legacyInput,'--output',legacyOutput],{cwd:root,timeout:60000});const legacySummary=JSON.parse(legacyResult.stdout);assert.equal(legacySummary.sourceDigest,legacy.integrity.digest);assert.equal(legacySummary.integrity,'ok');assert.equal(legacySummary.counts.improvement_experiments,0);assert.equal(legacySummary.rowCount,summary.rowCount-1);assert.equal(legacySummary.foreignKeyViolations,0);assert.equal(legacySummary.externalCalls,0);assert.doesNotMatch(legacyResult.stdout,/Private|secret_|prompt_text|owner_id/);
     await assert.rejects(promisify(execFile)(process.execPath,['--experimental-strip-types','scripts/verify-backup.mjs','--input',input,'--output',output],{cwd:root,timeout:60000}),error=>error.stderr.includes('restore_target_exists'));
     chmodSync(input,0o644);await assert.rejects(promisify(execFile)(process.execPath,['--experimental-strip-types','scripts/verify-backup.mjs','--input',input,'--output',path.join(dir,'unsafe')],{cwd:root,timeout:60000}),error=>error.stderr.includes('backup_permissions'));
   }finally{rmSync(dir,{recursive:true,force:true});}
