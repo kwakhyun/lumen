@@ -4,4 +4,13 @@ Disallow: /dashboard
 Disallow: /api/
 Disallow: /mcp
 
+# Search discovery uses the same public-page policy as other crawlers.
+User-agent: bingbot
+User-agent: OAI-SearchBot
+User-agent: PerplexityBot
+Allow: /
+Disallow: /dashboard
+Disallow: /api/
+Disallow: /mcp
+
 Sitemap: https://lumen-ai-visibility.khyun97.chatgpt.site/sitemap.xml

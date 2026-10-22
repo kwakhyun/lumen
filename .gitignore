@@ -56,3 +56,11 @@ next-env.d.ts
 /work/
 
 *.tsbuildinfo
+
+# Local secrets and database files
+.dev.vars*
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal

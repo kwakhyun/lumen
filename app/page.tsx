@@ -5,6 +5,19 @@ import { ArrowUpRight, ArrowRight, Check, SunMedium, Quote, ChartNoAxesCombined,
 import './landing.css';
 import { AnalyticsConsent } from '@/components/analytics-consent';
 const siteUrl = 'https://lumen-ai-visibility.khyun97.chatgpt.site';
+const productIdentity = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  '@id': `${siteUrl}/#lumen`,
+  name: 'Lumen',
+  url: `${siteUrl}/`,
+  sameAs: 'https://github.com/kwakhyun/lumen',
+  applicationCategory: 'BusinessApplication',
+  operatingSystem: 'Web',
+  inLanguage: 'ko',
+  description: 'Gemini API 답변을 분석하고 직접 확인한 AI 검색 결과와 GA4 방문 자료로 콘텐츠 개선 전후를 비교하는 무료 워크스페이스입니다.',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'KRW' },
+};
 export const metadata: Metadata = {
   title: { absolute: 'Lumen — 무료 AI 답변 분석과 브랜드 검색 관측' },
   description: 'Gemini API 답변을 수집하고, 직접 확인한 ChatGPT와 Perplexity 검색의 브랜드 언급과 인용을 기록하세요. 콘텐츠 변경 전후 비교와 GA4 방문 기준 자료를 무료로 관리합니다.',
@@ -21,6 +34,7 @@ const faq = [
   ['검색 노출이나 매출 상승을 보장하나요?', '보장하지 않습니다. 같은 질문과 조건에서 전후 모두 확인한 답변을 비교하고, 개선 대상과 비교 대상의 변화도 대조합니다. 이는 관측된 변화이며 전체 이용자의 노출 빈도나 콘텐츠 개선의 인과효과를 증명하지 않습니다. 방문, 전환과 매출은 각각 같은 범위의 자료로 확인해야 합니다.'],
 ];
 export default function Home() { return <main className="lp">
+  <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productIdentity).replace(/</g, '\\u003c') }} />
   <a className="lp-skip" href="#main">본문으로 이동</a>
   <header className="lp-header"><a href="/" className="lp-logo" aria-label="Lumen 홈"><SunMedium size={25} strokeWidth={2.1}/><span>lumen</span></a><nav aria-label="주 메뉴"><a href="#product">제품</a><a href="#search-tracking">검색 관측</a><a href="/guides/free-ai-brand-tracking">활용 가이드</a><a href="#free">무료 사용</a><a href="#faq">자주 묻는 질문</a></nav><a className="lp-header-cta" href="/dashboard">워크스페이스 열기<ArrowUpRight size={16}/></a></header>
   <section className="lp-hero" id="main"><div className="lp-eyebrow"><span className="lp-live-dot"/> AI 답변 속 우리 브랜드</div><h1>AI는 우리 브랜드를{' '}<br/>어떻게 <em>소개하고 있을까요?</em></h1><p className="lp-hero-copy">Gemini API 답변을 수집하고, 직접 확인한 ChatGPT와 Perplexity 검색 결과를 기록하세요.{' '}<br/>브랜드 언급과 인용 근거를 보관하고 콘텐츠 변경 전후를 비교할 수 있습니다.</p><ol className="lp-first-steps" aria-label="첫 답변을 확인하는 순서"><li><span>1</span>브랜드 등록</li><li><span>2</span>질문 추가</li><li><span>3</span>답변 수집</li></ol><p className="lp-collection-note">자동 수집은 웹 검색이 없는 Gemini API 답변을 사용합니다.{' '}<br/>실제 AI 검색 관측은 별도로 기록하며, GA4는 필요할 때 연결할 수 있습니다.</p><div className="lp-hero-actions"><a className="lp-btn primary" href="/dashboard?start=1">내 브랜드 등록하기<ArrowRight size={18}/></a><a className="lp-btn secondary" href="/dashboard?demo=1">샘플 둘러보기<ArrowUpRight size={17}/></a></div><a className="lp-hero-guide" href="/guides/free-ai-brand-tracking">실제 AI 검색을 추적하는 방법<ArrowRight size={16}/></a><p className="lp-hero-note">ChatGPT 로그인 후 이용할 수 있으며, 샘플 보기에도 로그인이 필요합니다.{' '}<br/>대한민국에서 이용하는 만 18세 이상 업무 사용자 대상 / 카드 등록 없음</p>
@@ -38,5 +52,5 @@ export default function Home() { return <main className="lp">
   <section className="lp-section lp-free" id="free"><div><span className="lp-kicker">04 / 무료 사용</span><h2>무료로 시작하는{' '}<br/>AI 답변 분석</h2><p>제공되는 무료 한도 안에서 답변을 수집하고 분석하세요.{' '}<br/>결제 정보 입력이나 자동 유료 전환은 없습니다.</p><a href="#faq" className="lp-text-link">무료 이용 안내 확인하기<ArrowRight size={17}/></a></div><article className="lp-free-card"><div><span className="lp-tag">LUMEN FREE</span><SunMedium size={26}/></div><h3>무료 워크스페이스</h3><p className="lp-price">₩0<span> / 카드 등록 없음</span></p><ul><li><Check size={17}/>기본 하루 10회, 월 100회 Gemini API 호출</li><li><Check size={17}/>질문과 브랜드 비교, 답변 원문 확인</li><li><Check size={17}/>정기 수집과 실행 이력</li><li><Check size={17}/>콘텐츠 초안, 리포트와 개선 작업</li><li><Check size={17}/>실제 검색 관측 JSON 가져오기와 전후 비교</li><li><Check size={17}/>CSV 내보내기와 GA4 방문 집계(선택)</li></ul><a className="lp-btn primary" href="/dashboard?start=1">내 브랜드 등록하기<ArrowRight size={18}/></a><small>AI 기능은 개인 한도와 서비스 공용 한도(하루 50회, 월 500회)를 함께 사용합니다. 실제 잔여량과 제한은 사용량 화면에서 확인하세요. 검색 관측 저장과 GA4 조회는 AI 호출을 사용하지 않습니다. 무료 Gemini API에는 웹 검색이 없습니다.</small></article></section>
   <section className="lp-section lp-faq" id="faq"><div><span className="lp-kicker">자주 묻는 질문</span><h2>이용 전에{' '}<br/>확인해 주세요</h2></div><div>{faq.map(([q,a])=><details key={q}><summary>{q}<ChevronDown size={18}/></summary><p>{a}</p></details>)}</div></section>
   <section className="lp-closing"><SunMedium size={34}/><h2>우리 브랜드에 대한{' '}<br/>AI 답변을 확인해 보세요</h2><a className="lp-btn primary" href="/dashboard?start=1">내 브랜드 등록하기<ArrowRight size={18}/></a></section>
-  <footer className="lp-footer"><a href="/" className="lp-logo"><SunMedium size={23}/><span>lumen</span></a><p>AI 답변으로 살펴보는 우리 브랜드</p><div><a href="/guides/free-ai-brand-tracking">무료 추적 가이드</a><a href="/methodology">측정 방법</a><a href="/privacy">개인정보 처리 안내</a><a href="/terms">이용 안내</a><a href="mailto:khyun9685@gmail.com">문의</a><a href="/dashboard/design-system">디자인 시스템</a><AnalyticsConsent/><span>© {new Date().getFullYear()} Lumen</span></div><small className="lp-operator">운영자 곽현 · 지원 <a href="mailto:khyun9685@gmail.com">khyun9685@gmail.com</a></small></footer>
+  <footer className="lp-footer"><a href="/" className="lp-logo"><SunMedium size={23}/><span>lumen</span></a><p>AI 답변으로 살펴보는 우리 브랜드</p><div><a href="/guides/free-ai-brand-tracking">무료 추적 가이드</a><a href="/methodology">측정 방법</a><a href="/privacy">개인정보 처리 안내</a><a href="/terms">이용 안내</a><a href="mailto:khyun9685@gmail.com">문의</a><a href="/dashboard/design-system">디자인 시스템</a><a href="https://github.com/kwakhyun/lumen">GitHub</a><AnalyticsConsent/><span>© {new Date().getFullYear()} Lumen</span></div><small className="lp-operator">운영자 곽현 · 지원 <a href="mailto:khyun9685@gmail.com">khyun9685@gmail.com</a></small></footer>
 </main>}
