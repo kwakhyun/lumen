@@ -48,3 +48,5 @@ export * from './impact-schema';
 export * from "./impact-baseline-schema";
 
 export * from "./impact-check-schema";
+
+export * from './security-schema';
