@@ -90,3 +90,6 @@
 
 .d-impact-ga4-record .d-row-inline,.d-impact-form .d-form-actions { flex-wrap:wrap; }
 .d-impact-baseline-table:focus-visible { outline:2px solid var(--lumen-accent); outline-offset:-2px; }
+
+.d-impact-check-question { display:block; min-width:240px; max-width:440px; white-space:normal; line-height:1.7; }
+.d-impact-check-question+small { display:block; color:var(--lumen-muted); margin-top:8px; }

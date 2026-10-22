@@ -24,7 +24,7 @@ export type ImpactComparison = {
   caveats: string[];
 };
 export type ImpactState = { studies: ImpactStudy[]; metricVersion: typeof IMPACT_METRIC_VERSION };
-export type ImpactDetail = { baselines: import('./impact-baseline-types').ImpactBaseline[]; study: ImpactStudy; searches: ImpactSearch[]; outcomes: ImpactOutcome[]; comparison: ImpactComparison };
+export type ImpactDetail = { checks: import('./impact-check-types').ImpactCheck[]; baselines: import('./impact-baseline-types').ImpactBaseline[]; study: ImpactStudy; searches: ImpactSearch[]; outcomes: ImpactOutcome[]; comparison: ImpactComparison };
 export type ImpactCreateBody = { action: 'create_study'; siteId: string; requestId: string; plan: ImpactPlan };
 export type ImpactSearchBody = { action: 'add_search'; siteId: string; studyId: string; requestId: string; observation: ImpactSearchInput };
 export type ImpactOutcomeBody = { action: 'add_outcome'; siteId: string; studyId: string; requestId: string; outcome: ImpactOutcomeInput };

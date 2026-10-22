@@ -8,6 +8,7 @@ import { Badge, Button, Empty, Field, Modal, Panel, Skeleton, downloadFile, numb
 import { localDateTime, requestJson, useResource } from '../client';
 import { impactCurrencyDigits, impactKoreanTimeToIso, impactPeriodError, impactRevenueToMinor } from '../impact-inputs';
 import { BeforeSearchBaseline, Ga4Baseline, SearchImport } from './impact-automation';
+import { ImpactChecks } from './impact-checks';
 import '../impact.css';
 
 const armLabel = { treatment: '개선 대상', control: '비교 대상' };
@@ -69,7 +70,7 @@ function Link({ href, children }: { href: string; children: ReactNode }) { const
 
 function ImpactStudyDetail({ siteId, studyId, onBack }: { siteId: string; studyId: string; onBack: () => void }) {
   const resource = useResource<ImpactDetail>(`/api/impact?siteId=${siteId}&studyId=${studyId}`);
-  const [tab, setTab] = useState<'results' | 'searches' | 'outcomes' | 'plan'>('results');
+  const [tab, setTab] = useState<'results' | 'searches' | 'outcomes' | 'plan' | 'checks'>('results');
   const [editor, setEditor] = useState<Editor>(null);
   const [voidRecord, setVoidRecord] = useState<VoidRecord | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
@@ -92,10 +93,12 @@ function ImpactStudyDetail({ siteId, studyId, onBack }: { siteId: string; studyI
     {resource.loading && !detail ? <Skeleton /> : detail ? <>
       <Panel title={detail.study.plan.title} subtitle={`${detail.study.brand.name} / ${detail.study.plan.context.surface} / ${detail.study.plan.context.model}`} action={<Button onClick={() => downloadFile(`lumen-impact-${studyId}.json`, JSON.stringify(detail, null, 2), 'application/json')}><Download size={15} />기록 내보내기</Button>}>
         <div className="d-card-body"><p>{detail.study.plan.hypothesis}</p><div className="d-impact-plan-line"><Badge>{detail.study.registration === 'prospective' ? '관측 시작 전 등록' : '관측 시작 후 등록'}</Badge><span>변경 전 {detail.study.plan.beforeStart} ~ {detail.study.plan.beforeEnd}</span><span>변경 후 {detail.study.plan.afterStart} ~ {detail.study.plan.afterEnd} UTC</span></div></div>
-        <div className="d-impact-tabs" aria-label="검증 기록 보기">{([['results', '비교 결과'], ['searches', '검색 근거'], ['outcomes', '방문과 구매'], ['plan', '고정된 계획']] as const).map(([value, title]) => <Button key={value} variant={tab === value ? 'primary' : 'quiet'} aria-pressed={tab === value} onClick={() => setTab(value)}>{title}</Button>)}</div>
+        <div className="d-impact-tabs" aria-label="검증 기록 보기">{([['results', '비교 결과'], ['checks', '배포 후 점검'], ['searches', '검색 근거'], ['outcomes', '방문과 구매'], ['plan', '고정된 계획']] as const).map(([value, title]) => <Button key={value} variant={tab === value ? 'primary' : 'quiet'} aria-pressed={tab === value} onClick={() => setTab(value)}>{title}</Button>)}</div>
       </Panel>
       {notice && <p className="d-impact-notice" role="status">{notice}</p>}
-      {tab === 'results' && <><BeforeSearchBaseline detail={detail} /><Ga4Baseline siteId={siteId} study={detail.study} /><Results detail={detail} onSearch={() => open('search')} onOutcome={() => open('outcome')} /></>}
+      {detail.checks?.some(check => Date.parse(check.payload.publishedAt) < Date.parse(`${detail.study.plan.beforeEnd}T23:59:59.999Z`)) && <Help>변경 전 기간이 끝나기 전에 콘텐츠가 배포되었습니다. 배포 이후의 검색을 변경 전 기준값에 추가하면 비교가 왜곡됩니다. 아래 고정 기간의 결과는 원래 계획의 효과 검증으로 해석할 수 없으며, ‘배포 후 점검’에서 실제 시각별 결과를 확인하세요.</Help>}
+      {tab === 'checks' && <ImpactChecks detail={detail} refresh={resource.refresh} />}
+      {tab === 'results' && <>{(detail.checks?.length ?? 0) > 0 && <Panel title={`배포 후 별도 점검 ${detail.checks.length}건`} subtitle="실제 배포 이후의 결과를 기준 기록과 비교했어요. 원래 계획의 집계와 분리해 확인할 수 있습니다." action={<Button onClick={() => setTab('checks')}>배포 후 결과 보기<ArrowRight size={16} /></Button>}>{null}</Panel>}<BeforeSearchBaseline detail={detail} /><Ga4Baseline siteId={siteId} study={detail.study} /><Results detail={detail} onSearch={() => open('search')} onOutcome={() => open('outcome')} /></>}
       {tab === 'searches' && <Panel title="실제 AI 검색 관측" subtitle="답변이 없거나 오류가 난 경우도 남기세요. 결과가 좋을 때만 기록하면 비교가 왜곡됩니다." action={<div className="d-row-inline"><Button onClick={() => open('import')}>검색 관측 가져오기</Button><Button variant="primary" onClick={() => open('search')}><Plus size={16} />검색 결과 기록</Button></div>}><div className="d-card-body"><Help>검색 확인 화면의 원래 인용만 인용률에 포함해요. 이후 따로 찾아본 검색 결과는 참고 자료로만 보관합니다. 입력 오류는 사유를 남겨 제외한 뒤 새로 기록하세요.</Help></div>{detail.searches.length ? <div className="d-impact-records">{detail.searches.map(record => <SearchRecord key={record.id} record={record} study={detail.study} onVoid={() => { setError(''); setVoidRecord({ kind: 'search', id: record.id }); }} />)}</div> : <Empty title="아직 검색 관측이 없어요" text="계획에 저장한 질문으로 AI 검색을 확인한 뒤 결과를 기록하거나, 확인한 관측 JSON을 가져오세요. Lumen이 검색 결과를 임의로 생성하지 않습니다." />}</Panel>}
       {tab === 'outcomes' && <Panel title="방문과 구매 집계" subtitle="개선 대상과 비교 대상의 변경 전후, 총 4개 구간을 같은 기준으로 기록하세요." action={<Button variant="primary" onClick={() => open('outcome')}><Plus size={16} />집계 기록</Button>}><div className="d-card-body"><Help>이 기록은 GA4나 판매 시스템 보고서에서 직접 옮긴 집계예요. 기존 GA4 연결에 새 요청을 보내지 않습니다. 확인하지 못한 값은 비워 두세요. 방문에서 구매로 이어진 경로가 확인되지 않으면 AI의 매출 기여로 단정할 수 없어요.</Help></div>{detail.outcomes.length ? <div className="d-impact-records">{detail.outcomes.map(record => <OutcomeRecord key={record.id} record={record} onVoid={() => { setError(''); setVoidRecord({ kind: 'outcome', id: record.id }); }} />)}</div> : <Empty title="아직 방문과 구매 집계가 없어요" text="기간 전체를 포함한 보고서에서 같은 채널 필터와 전환 정의로 집계하세요. 개인정보나 개별 주문 정보는 넣지 마세요." />}</Panel>}
       {tab === 'plan' && <PlanDetails study={detail.study} />}

@@ -4,10 +4,13 @@ import { IMPACT_METRIC_VERSION, type ImpactPlan, type ImpactSearchInput, type Im
 import { impactDigest } from './impact-integrity';
 import { impactBaselinePayloadSchema } from './impact-baseline-validation';
 import { impactBaselineQueryKey } from './impact-baseline-integrity';
+import { impactCheckPayloadSchema, assertImpactCheckMatchesBaselines } from './impact-check-validation';
+import { impactCheckDigest } from './impact-check-integrity';
 
 export const BACKUP_FORMAT = 'lumen-workspace-backup';
-export const BACKUP_VERSION = 4;
-export const PREVIOUS_BACKUP_VERSION = 3;
+export const BACKUP_VERSION = 5;
+export const PREVIOUS_BACKUP_VERSION = 4;
+export const V3_BACKUP_VERSION = 3;
 export const V2_BACKUP_VERSION = 2;
 export const LEGACY_BACKUP_VERSION = 1;
 export const BACKUP_MAX_BYTES = 8 * 1024 * 1024;
@@ -26,8 +29,11 @@ export const V2_BACKUP_MIGRATIONS = [
 export const V3_BACKUP_MIGRATIONS = [...V2_BACKUP_MIGRATIONS,
   { name: '0004_medical_master_chief.sql', sha256: 'ecf08e5e834514f01b6a7c111b0ef33fc848d31d2296f854f5a10e5c51a94d7d' },
 ] as const;
-export const BACKUP_MIGRATIONS = [...V3_BACKUP_MIGRATIONS,
+export const V4_BACKUP_MIGRATIONS = [...V3_BACKUP_MIGRATIONS,
   { name: '0005_freezing_jackpot.sql', sha256: 'ce16c150df8265dc191712d5b1bc730a012446041d28436cbf22b18d4d260ecb' },
+] as const;
+export const BACKUP_MIGRATIONS = [...V4_BACKUP_MIGRATIONS,
+  { name: '0006_opposite_fenris.sql', sha256: 'cede6da309649d7e6072bf8bf72c55df360e3b4b9af3e0df944f98a12700f867' },
 ] as const;
 export class BackupError extends Error {
   code: string;
@@ -81,6 +87,7 @@ export const BACKUP_TABLES = {
   impact_searches: table({ ...evidenceFields, phase: z.enum(['before', 'after']), query_id: id, repetition: z.number().int().min(1).max(3), payload: jsonText(impactSearchSchema, 100000) }, 5000, 3 * 1024 * KiB),
   impact_outcomes: table({ ...evidenceFields, arm: z.enum(['treatment', 'control']), phase: z.enum(['before', 'after']), payload: jsonText(impactOutcomeSchema, 20000) }, 1000, 1024 * KiB),
   impact_baselines: table({ ...child, study_id: id, query_key: z.string().regex(/^[a-f0-9]{64}$/), payload: jsonText(impactBaselinePayloadSchema, 20000), created_at: date, digest: z.string().regex(/^[a-f0-9]{64}$/) }, 100, 512 * KiB),
+  impact_checks: table({ ...child, study_id: id, payload: jsonText(impactCheckPayloadSchema, 100000), created_at: date, digest: z.string().regex(/^[a-f0-9]{64}$/) }, 20, 1024 * KiB),
 } as const;
 export type BackupTableName = keyof typeof BACKUP_TABLES;
 export type BackupRow = Record<string, string | number | null>;
@@ -91,9 +98,10 @@ export const LEGACY_BACKUP_TABLE_NAMES = ['sites', 'prompts', 'competitors', 'ru
 type LegacyBackupTableName = typeof LEGACY_BACKUP_TABLE_NAMES[number];
 export const V2_BACKUP_TABLE_NAMES = [...LEGACY_BACKUP_TABLE_NAMES, 'improvement_experiments'] as const satisfies readonly BackupTableName[];
 export const V3_BACKUP_TABLE_NAMES = [...V2_BACKUP_TABLE_NAMES, 'impact_studies', 'impact_searches', 'impact_outcomes'] as const satisfies readonly BackupTableName[];
-type BackupVersion = typeof BACKUP_VERSION | typeof PREVIOUS_BACKUP_VERSION | typeof V2_BACKUP_VERSION | typeof LEGACY_BACKUP_VERSION;
-const tableNamesFor = (version: BackupVersion) => version === 1 ? LEGACY_BACKUP_TABLE_NAMES : version === 2 ? V2_BACKUP_TABLE_NAMES : version === 3 ? V3_BACKUP_TABLE_NAMES : BACKUP_TABLE_NAMES;
-const migrationsFor = (version: BackupVersion) => version === 1 ? LEGACY_BACKUP_MIGRATIONS : version === 2 ? V2_BACKUP_MIGRATIONS : version === 3 ? V3_BACKUP_MIGRATIONS : BACKUP_MIGRATIONS;
+export const V4_BACKUP_TABLE_NAMES = [...V3_BACKUP_TABLE_NAMES, 'impact_baselines'] as const satisfies readonly BackupTableName[];
+type BackupVersion = typeof BACKUP_VERSION | typeof PREVIOUS_BACKUP_VERSION | typeof V3_BACKUP_VERSION | typeof V2_BACKUP_VERSION | typeof LEGACY_BACKUP_VERSION;
+const tableNamesFor = (version: BackupVersion) => version === 1 ? LEGACY_BACKUP_TABLE_NAMES : version === 2 ? V2_BACKUP_TABLE_NAMES : version === 3 ? V3_BACKUP_TABLE_NAMES : version === 4 ? V4_BACKUP_TABLE_NAMES : BACKUP_TABLE_NAMES;
+const migrationsFor = (version: BackupVersion) => version === 1 ? LEGACY_BACKUP_MIGRATIONS : version === 2 ? V2_BACKUP_MIGRATIONS : version === 3 ? V3_BACKUP_MIGRATIONS : version === 4 ? V4_BACKUP_MIGRATIONS : BACKUP_MIGRATIONS;
 function backupSchemaFor(version: BackupVersion) {
   const names = tableNamesFor(version);
   const manifest = migrationsFor(version);
@@ -111,6 +119,7 @@ function backupSchemaFor(version: BackupVersion) {
 }
 const currentBackupSchema = backupSchemaFor(BACKUP_VERSION);
 const previousBackupSchema = backupSchemaFor(PREVIOUS_BACKUP_VERSION);
+const v3BackupSchema = backupSchemaFor(V3_BACKUP_VERSION);
 const v2BackupSchema = backupSchemaFor(V2_BACKUP_VERSION);
 const legacyBackupSchema = backupSchemaFor(LEGACY_BACKUP_VERSION);
 export type WorkspaceBackup = {
@@ -217,16 +226,25 @@ export function validateRelationships(data: WorkspaceBackup): void {
     if (payload.requestedStartDate !== plan.beforeStart || payload.requestedEndDate !== plan.beforeEnd) fail('GA4 baseline differs from its frozen study window.');
     if (Date.parse(payload.fetchedAt) > Date.parse(String(row.created_at))) fail('GA4 baseline was saved before its observation.');
   }
-  const baselineColumns = Object.keys(BACKUP_TABLES.impact_baselines.schema.shape);
-  const baselineOverhead = baselineColumns.reduce((size, key) => size + JSON.stringify(key).length + 2, 2);
-  const baselineBytes = (tables.impact_baselines || []).reduce((size, row) => size + new TextEncoder().encode(JSON.stringify(baselineColumns.map(key => row[key]))).byteLength + baselineOverhead, 0);
-  if (baselineBytes > BACKUP_TABLES.impact_baselines.maxBytes) throw new BackupError('backup_too_large', 'GA4 baseline data exceeds its supported byte limit.', 413);
+  for (const row of tables.impact_checks || []) {
+    const plan = studies.get(row.study_id);
+    if (!plan) fail('Deployment check references a missing study.');
+    const baselines = (tables.impact_searches || []).filter(search => search.study_id === row.study_id).map(search => ({ ...JSON.parse(String(search.payload)), digest: String(search.digest), voidedAt: search.voided_at === null ? null : String(search.voided_at) }));
+    try { assertImpactCheckMatchesBaselines(plan, JSON.parse(String(row.payload)), baselines, Date.parse(String(row.created_at)), true); }
+    catch { fail('Deployment check references or chronology are inconsistent with its original baseline.'); }
+  }
+  for (const name of ['impact_baselines', 'impact_checks'] as const) {
+    const columns = Object.keys(BACKUP_TABLES[name].schema.shape);
+    const overhead = columns.reduce((size, key) => size + JSON.stringify(key).length + 2, 2);
+    const bytes = (tables[name] || []).reduce((size, row) => size + new TextEncoder().encode(JSON.stringify(columns.map(key => row[key]))).byteLength + overhead, 0);
+    if (bytes > BACKUP_TABLES[name].maxBytes) throw new BackupError('backup_too_large', 'Impact reference data exceeds its supported byte limit.', 413);
+  }
   // answers.prompt_id intentionally has no FK: deleted prompts retain historical answers.
 }
 export async function validateBackup(input: unknown): Promise<WorkspaceBackup> {
   const version = input !== null && typeof input === 'object' && !Array.isArray(input) ? (input as { version?: unknown }).version : undefined;
-  if (version !== LEGACY_BACKUP_VERSION && version !== V2_BACKUP_VERSION && version !== PREVIOUS_BACKUP_VERSION && version !== BACKUP_VERSION) throw new BackupError('backup_schema_unsupported', 'Backup schema version is not supported.');
-  const result = (version === LEGACY_BACKUP_VERSION ? legacyBackupSchema : version === V2_BACKUP_VERSION ? v2BackupSchema : version === PREVIOUS_BACKUP_VERSION ? previousBackupSchema : currentBackupSchema).safeParse(input);
+  if (version !== LEGACY_BACKUP_VERSION && version !== V2_BACKUP_VERSION && version !== V3_BACKUP_VERSION && version !== PREVIOUS_BACKUP_VERSION && version !== BACKUP_VERSION) throw new BackupError('backup_schema_unsupported', 'Backup schema version is not supported.');
+  const result = (version === LEGACY_BACKUP_VERSION ? legacyBackupSchema : version === V2_BACKUP_VERSION ? v2BackupSchema : version === V3_BACKUP_VERSION ? v3BackupSchema : version === PREVIOUS_BACKUP_VERSION ? previousBackupSchema : currentBackupSchema).safeParse(input);
   if (!result.success) throw new BackupError('backup_invalid', 'Backup data is invalid or incomplete.', 400, result.error.issues.slice(0, 20).map(issue => ({ code: issue.code, path: issue.path }))); 
   const data = result.data as WorkspaceBackup;
   const manifest = migrationsFor(version);
@@ -251,6 +269,11 @@ export async function validateBackup(input: unknown): Promise<WorkspaceBackup> {
     if (queryKey !== row.query_key) fail('GA4 baseline query integrity check failed.');
     const digest = await impactDigest({ studyDigest: studyDigests.get(row.study_id), kind: 'ga4_baseline', queryKey, payload });
     if (digest !== row.digest) fail('GA4 baseline evidence integrity check failed.');
+  }
+  for (const row of data.tables.impact_checks || []) {
+    const payload = impactCheckPayloadSchema.parse(JSON.parse(String(row.payload)));
+    const digest = await impactCheckDigest(studyDigests.get(row.study_id)!, payload);
+    if (digest !== row.digest) fail('Deployment check integrity check failed.');
   }
   return data;
 }
