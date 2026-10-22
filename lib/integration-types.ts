@@ -1,0 +1,3 @@
+export type GA4Property = { id: string; name: string; accountName: string };
+export type GA4Report = { startDate: string; endDate: string; totalSessions: number; totalUsers: number; totalViews: number; aiSessions: number; rows: { date: string; source: string; medium: string; sessions: number; views: number }[]; dataQuality: { subjectToThresholding: boolean; dataLossFromOtherRow: boolean; sampled: boolean }; timeZone: string | null };
+export type GA4Status = { oauthMode: 'testing' | 'production'; configured: boolean; connected: boolean; reconnectRequired: boolean; propertyId: string | null; propertyName: string | null; lastSyncedAt: string | null; error: string | null; report: GA4Report | null };

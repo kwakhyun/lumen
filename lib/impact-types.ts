@@ -1,0 +1,31 @@
+export const IMPACT_METRIC_VERSION = 'lumen-impact-v1' as const;
+export type ImpactArm = 'treatment' | 'control';
+export type ImpactPhase = 'before' | 'after';
+export type ImpactPlan = {
+  title: string; hypothesis: string; changeSummary: string; changedAt: string; contentVersion: string;
+  beforeStart: string; beforeEnd: string; afterStart: string; afterEnd: string;
+  context: { surface: string; model: string; language: string; country: string; device: string; personalization: string };
+  queries: { id: string; question: string; arm: ImpactArm; pageUrl: string }[];
+  repetitions: number; currency: string; outcomeDefinition: string; attributionRule: string;
+};
+export type ImpactStudy = { id: string; siteId: string; plan: ImpactPlan; brand: { name: string; domain: string }; metricVersion: typeof IMPACT_METRIC_VERSION; createdAt: string; registration: 'prospective' | 'retrospective'; digest: string };
+export type ImpactSearchInput = { phase: ImpactPhase; queryId: string; repetition: number; observedAt: string; result: 'answer' | 'no_ai_answer' | 'error'; searchConfirmed: boolean; answerExcerpt: string; brandMention: 'present' | 'absent' | 'uncertain'; citationReview: 'complete' | 'not_reviewed'; evidenceUrl: string; citations: { url: string; title: string; relation: 'original_citation' | 'followup_search' }[]; notes: string };
+export type ImpactOutcomeInput = { arm: ImpactArm; phase: ImpactPhase; source: 'ga4_export' | 'store_export' | 'manual'; sourceId: string; sourceRef: string; reportTimeZone: 'UTC'; definitionConfirmed: true; rangeStart: string; rangeEnd: string; sessions: number | null; convertingSessions: number | null; orders: number | null; revenueMinor: number | null; currency: string; notes: string; confounders: string };
+export type ImpactAudit = { id: string; siteId: string; studyId: string; createdAt: string; digest: string; voidedAt: string | null; voidReason: string | null };
+export type ImpactSearch = ImpactSearchInput & ImpactAudit;
+export type ImpactOutcome = ImpactOutcomeInput & ImpactAudit;
+export type ImpactRate = { numerator: number; denominator: number; rate: number | null };
+export type ImpactSearchComparison = { paired: number; planned: number; before: ImpactRate; after: ImpactRate; deltaPp: number | null };
+export type ImpactSearchCoverage = { planned: number; recorded: number; missing: number; errors: number; noAiAnswer: number; unconfirmedSearch: number; uncertainMention: number; unreviewedCitations: number };
+export type ImpactComparison = {
+  coverage: Record<ImpactArm, Record<ImpactPhase, ImpactSearchCoverage>>;
+  search: Record<'mention' | 'citation', { treatment: ImpactSearchComparison; control: ImpactSearchComparison; differenceInDifferencesPp: number | null }>;
+  business: { completeCells: number; comparable: boolean; conversionRate: Record<ImpactArm, { before: number | null; after: number | null; deltaPp: number | null }>; conversionDifferenceInDifferencesPp: number | null; revenuePerSession: Record<ImpactArm, { before: number | null; after: number | null; deltaMinor: number | null }>; revenueDifferenceInDifferencesMinor: number | null; revenueTotals: Record<ImpactArm, { before: number | null; after: number | null; deltaMinor: number | null }> };
+  caveats: string[];
+};
+export type ImpactState = { studies: ImpactStudy[]; metricVersion: typeof IMPACT_METRIC_VERSION };
+export type ImpactDetail = { checks: import('./impact-check-types').ImpactCheck[]; baselines: import('./impact-baseline-types').ImpactBaseline[]; study: ImpactStudy; searches: ImpactSearch[]; outcomes: ImpactOutcome[]; comparison: ImpactComparison };
+export type ImpactCreateBody = { action: 'create_study'; siteId: string; requestId: string; plan: ImpactPlan };
+export type ImpactSearchBody = { action: 'add_search'; siteId: string; studyId: string; requestId: string; observation: ImpactSearchInput };
+export type ImpactOutcomeBody = { action: 'add_outcome'; siteId: string; studyId: string; requestId: string; outcome: ImpactOutcomeInput };
+export type ImpactVoidBody = { action: 'void_search' | 'void_outcome'; siteId: string; studyId: string; id: string; reason: string };
