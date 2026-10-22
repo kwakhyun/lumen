@@ -17,6 +17,7 @@ import Usage from "./sections/usage";
 import RunSetup from "./sections/run-setup";
 import GA4 from "./sections/ga4";
 import Operations from "./sections/operations";
+import Security from "./sections/security";
 import Connections from "./sections/connections";
 import DesignSystem from "./design-system";
 import MarkdownContent from "./markdown";
@@ -34,6 +35,7 @@ const primaryNavigation = [
   { id: "connections", title: "연결 관리", icon: Cable },
   { id: "usage", title: "사용량", icon: Gauge },
   { id: "operations", title: "운영 현황", icon: ShieldCheck },
+  { id: "security", title: "웹사이트 점검", icon: Globe2 },
 ];
 const navItems = [
   ...primaryNavigation,
@@ -60,6 +62,7 @@ const pageMeta: Record<string, { label: string; title: string; description: stri
   connections: { label: "CONNECTIONS", title: "AI와 방문 데이터 연결", description: "사용 가능한 AI 모델과 GA4 연결 상태를 확인하세요." },
   usage: { label: "USAGE", title: "무료 사용량과 한도", description: "내 계정과 서비스 전체의 AI 호출 사용량을 확인하세요. Lumen은 무료 한도 안에서 이용할 수 있습니다." },
   operations: { label: "OPERATIONS", title: "수집 운영 현황", description: "자동 수집이 정상적으로 실행되는지 확인하고, 오류와 지연 내역을 살펴보세요." },
+  security: { label: "WEBSITE CHECK", title: "웹사이트 점검", description: "공개 웹 설정을 확인하고 개선 전후를 비교하세요." },
   "design-system": { label: "LUMEN DESIGN SYSTEM", title: "Lumen 디자인 시스템", description: "화면에 사용하는 색상, 글자, 버튼과 입력 요소의 기준을 확인하세요." },
   overview: { label: "OVERVIEW", title: "브랜드 분석 요약", description: "수집한 AI 답변에서 우리 브랜드의 언급 현황과 변화를 확인하세요." },
   prompts: { label: "QUESTIONS & ANSWERS", title: "질문별 AI 답변", description: "분석할 질문을 등록하고, 질문별로 수집한 답변과 브랜드 언급 여부를 확인하세요." },
@@ -164,6 +167,7 @@ export default function Dashboard({ user, initialSection = "overview" }: { user:
           {section === "actions" && <div className="d-stack"><Experiments key={siteId} state={state} /><Actions tasks={state.tasks} onEdit={t => openForm("task", t)} onStatus={handleTaskStatus} onDelete={t => setConfirmDelete({ type: "tasks", id: t.id, title: t.title })} onAdd={() => openForm("task")} /></div>}
           {section === "traffic" && <div className="d-stack"><GA4 key={siteId} state={state} /><Traffic state={state} flash={flash} /></div>}
           {section === "connections" && <Connections key={siteId} state={state} />}
+          {section === "security" && <Security key={siteId} state={state} />}
           {(section === "automations" || section === "operations") && <Operations key={`${siteId}-${section}`} state={state} view={section} requestAI={eligibility.request} />}
           {section === "settings" && <Settings state={state} user={user} onEdit={() => openForm("site", state.site)} onDelete={() => setConfirmDelete({ type: "site", id: siteId, title: state.site.name })} />}
           {section === "assistant" && <Assistant key={siteId} siteId={siteId} siteName={state.site.name} demo={state.site.mode === "demo"} requestAI={eligibility.request} />}

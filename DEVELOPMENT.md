@@ -50,7 +50,7 @@ npm run build
 )
 ```
 
-현재 파일은 다음 7개입니다. 화면과 API는 전체 스키마를 전제로 합니다.
+현재 파일은 다음 8개입니다. 화면과 API는 전체 스키마를 전제로 합니다.
 
 1. `0000_yummy_hannibal_king.sql`
 2. `0001_rapid_songbird.sql`
@@ -59,6 +59,7 @@ npm run build
 5. `0004_medical_master_chief.sql`
 6. `0005_freezing_jackpot.sql`
 7. `0006_opposite_fenris.sql`
+8. `0007_security_checks.sql`
 
 기존 스키마를 사용하려면 `npm run db:generate`를 다시 실행할 필요가 없습니다. 스키마를 수정할 때만 새 마이그레이션을 생성하고 검토하세요. 위 명령에는 `--local`이 명시돼 있으며 운영 DB를 변경하지 않습니다.
 
