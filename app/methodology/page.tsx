@@ -1,6 +1,10 @@
 /* eslint-disable @next/next/no-html-link-for-pages -- Full document navigation avoids the deployed Vinext RSC transition failure. */
 import '../landing.css';
-export const metadata = { title: '측정 방법' };
+export const metadata = {
+  title: '측정 방법',
+  description: 'Lumen의 브랜드 언급률, 검색 인용률, 콘텐츠 개선 전후 비교와 GA4 방문·매출 지표의 계산 방법과 해석 범위를 확인하세요.',
+  alternates: { canonical: 'https://lumen-ai-visibility.khyun97.chatgpt.site/methodology' },
+};
 export default function Methodology() {
   return <main className="lp-prose"><a href="/">← Lumen</a><h1>지표를 읽는 방법</h1>
     <p>Lumen은 API 답변 분석, 실제 검색 결과 관측, 방문과 매출 집계를 구분합니다. 서로 다른 환경에서 나온 숫자를 하나의 노출률로 합치지 않습니다. 실제 수집 데이터와 합성 샘플도 별도로 관리합니다.</p>
@@ -26,7 +30,7 @@ export default function Methodology() {
     <p>검색 효과 검증에서는 측정 조건과 개선 대상, 비교 대상을 먼저 정합니다. 콘텐츠 변경 내용과 게시 시각, 검색 반영을 확인한 근거를 기록하고 같은 조건으로 전후 결과를 모읍니다. 개선 대상의 변화에서 비교 대상의 변화를 뺀 차이도 확인할 수 있습니다. 이는 관측된 변화의 비교이며, 개선 작업이 원인이라는 증명이나 통계적 유의성 검정은 아닙니다. 광고 집행, 계절 변화, 모델 업데이트와 다른 변경 사항도 기록하세요.</p>
     <h2>방문, 전환과 매출은 별도로 확인합니다</h2>
     <p>AI의 브랜드 언급이나 인용이 늘어도 방문과 매출이 늘었다고 단정할 수 없습니다. 같은 기간과 채널, 페이지 범위의 방문 수, 전환 수, 매출을 출처와 함께 기록해 비교합니다. 통화와 귀속 기준이 다른 집계를 합치지 않고, 주문 식별자나 개인정보는 입력하지 않습니다. 수동 집계는 보고서의 원본이나 링크로 확인해야 합니다.</p>
-    <p>GA4 등의 유입 출처에는 누락이 있을 수 있고, AI를 접한 뒤 직접 방문한 구매는 AI 유입으로 잡히지 않을 수 있습니다. 전후 차이와 비교군 차이가 있어도 다른 원인을 배제하지 못하면 매출의 인과 효과로 해석하지 않습니다. 실험을 저장하거나 관측을 기록하는 작업 자체는 새로운 AI 호출을 만들지 않습니다. 7일 운영 검증은 수집기와 인증의 안정성을 확인하는 절차이며 마케팅 효과를 증명하는 기간은 아닙니다.</p>
+    <p>GA4 등의 유입 출처에는 누락이 있을 수 있고, AI를 접한 뒤 직접 방문한 구매는 AI 유입으로 잡히지 않을 수 있습니다. 전후 차이와 비교군 차이가 있어도 다른 원인을 배제하지 못하면 매출의 인과 효과로 해석하지 않습니다. 실험을 저장하거나 관측을 기록하는 작업 자체는 새로운 AI 호출을 만들지 않습니다. 수집기와 인증이 정상 작동한다는 사실만으로 마케팅 효과를 판단할 수는 없습니다.</p>
     <nav className="lp-policy-nav" aria-label="서비스 안내"><a href="/dashboard">워크스페이스</a><a href="/privacy">개인정보 처리 안내</a><a href="/terms">이용 안내</a><a href="mailto:khyun9685@gmail.com">문의</a></nav>
   </main>;
 }
