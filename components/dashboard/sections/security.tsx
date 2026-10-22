@@ -12,7 +12,7 @@ import '../security.css';
 
 const stateNames = { pass: '설정 확인', attention: '개선 검토', unknown: '확인 불가' };
 const categoryNames = { security: '보안 관련 설정', discovery: '검색 접근 설정' };
-const toolUrl = 'https://github.com/kwakhyun/lumen/tree/codex/security-readiness';
+const toolUrl = 'https://github.com/kwakhyun/lumen/blob/main/SECURITY_CHECKS.md';
 const messageOf = (cause: unknown) => cause instanceof Error ? cause.message : '요청을 완료하지 못했어요. 다시 시도해 주세요.';
 const localDateTime = (iso: string) => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
 
