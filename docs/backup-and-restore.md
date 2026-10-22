@@ -6,7 +6,7 @@ Lumen provides an owner-authenticated, read-only application backup. This is a p
 
 `GET /api/backup?siteId=<workspace UUID>` verifies the authenticated owner's workspace before querying data. Every projection independently enforces the same ownership boundary. Unknown parameters, repeated workspace selectors and cross-site browser requests are rejected. Successful responses are JSON attachments with `Cache-Control: private, no-store` and `nosniff`. Errors return the usual `{error, code}` JSON without an attachment. Schema errors may additionally return at most 20 issue codes and structural paths, never offending values or raw schema messages.
 
-The snapshot includes all rows for the selected workspace in these 15 areas, without a date filter:
+The snapshot includes all rows for the selected workspace in these 19 tables, without a date filter:
 
 - Workspace settings, prompts, competitors and personas.
 - Runs, original answers, provider citations and stored mention metadata.
@@ -14,6 +14,7 @@ The snapshot includes all rows for the selected workspace in these 15 areas, wit
 - Client-reported traffic aggregates.
 - Collection schedules, execution history, alerts and audit history.
 - GA4 property metadata and the saved aggregate report.
+- Frozen search/commerce study plans, search observations, outcome aggregates and GA4 baseline snapshots.
 
 The SQL explicitly selects permitted columns. Historical answer mentions that contain a full brand record are projected to only `name`, `domain`, `mentioned`, `firstPosition`, `rank` and `cited` inside SQL; extra owner, ID and tracking fields never enter the export. The original stored evidence is not rewritten. Invalid metric values still fail the strict schema. It never reads API keys, OAuth access/refresh ciphertext, OAuth state/verifier ciphertext, tracking keys, owner identifiers, job leases or quota reservations into the export. The `quotas`, `ai_usage_buckets`, `ai_usage_reservations`, `oauth_states`, `operation_heartbeats`, `operation_ticks` and account-scoped `ai_eligibility` tables are excluded. GA4 authorization scopes and connection status are not exported as renewable access.
 
@@ -21,13 +22,13 @@ Original questions, answers and documents remain private user content. The forma
 
 ## Completeness and limits
 
-After the preliminary authorization check, the 30 count/projection statements execute in one read-only D1 `batch()`. Counts and content therefore share the batch transaction. Each query uses fixed table/column names and bound identifiers. Rows are selected only when the associated count and estimated UTF-8 size fit the table limit. A max-plus-one sentinel detects oversized tables. Owner-field inconsistencies, invalid records or broken relationships fail the entire request.
+After the preliminary authorization check, the 38 count/projection statements execute in one read-only D1 `batch()`. Counts and content therefore share the batch transaction. Each query uses fixed table/column names and bound identifiers. Rows are selected only when the associated count and estimated UTF-8 size fit the table limit. A max-plus-one sentinel detects oversized tables. Owner-field inconsistencies, invalid records or broken relationships fail the entire request.
 
-The complete canonical JSON is limited to **8 MiB and 20,000 rows**. Table limits are deliberately lower for some data: sites 1; prompts 1,000; competitors 100; runs 6,000; answers 10,000; documents 1,000; tasks 1,000; personas 100; traffic 6,000; schedules 100; executions 6,000; alerts 1,000; audit rows 4,000; GA4 connection snapshots 1; improvement experiments 100 (512 KiB). Individual table byte bounds also apply. These are backup capacity bounds, not automatic retention or permission to delete data.
+The complete canonical JSON is limited to **8 MiB and 20,000 rows**. Table limits are deliberately lower for some data: sites 1; prompts 1,000; competitors 100; runs 6,000; answers 10,000; documents 1,000; tasks 1,000; personas 100; traffic 6,000; schedules 100; executions 6,000; alerts 1,000; audit rows 4,000; GA4 connection snapshots 1; improvement experiments 100 (512 KiB); impact plans 50 (512 KiB), search observations 5,000 (3 MiB), outcome aggregates 1,000 (1 MiB), GA4 baseline snapshots 100 (512 KiB). Individual table byte bounds also apply. These are backup capacity bounds, not automatic retention or permission to delete data.
 
 An over-limit workspace returns HTTP 413 `backup_too_large`. No silently truncated or partial backup is emitted. Increasing the limits or building a durable multi-part snapshot requires a separate design; ordinary paginated reads would not preserve one snapshot during concurrent changes.
 
-The envelope contains format version 2, ordered SQL migration names and SHA-256 checksums, export time, workspace scope, exact row counts and a canonical payload SHA-256 digest. Validation rejects unknown fields, unsupported migration versions, altered digests, duplicate IDs, incomplete answer sets, cross-workspace rows and missing required parents. Deleted prompts may legitimately leave historical `answers.prompt_id` references; these are intentionally soft references in the application schema.
+The envelope contains format version 4, ordered SQL migration names and SHA-256 checksums, export time, workspace scope, exact row counts and a canonical payload SHA-256 digest. Validation rejects unknown fields, unsupported migration versions, altered digests, duplicate IDs, incomplete answer sets, cross-workspace rows and missing required parents. Deleted prompts may legitimately leave historical `answers.prompt_id` references; these are intentionally soft references in the application schema.
 
 SHA-256 detects accidental corruption and payload changes. It is not a signature, proof of origin or encryption. The downloaded file contains private product data.
 
@@ -72,3 +73,8 @@ Cloudflare documents transactional [D1 batch calls](https://developers.cloudflar
 ## V1 compatibility after the observability and experiments release
 
 New exports use V2 with the four pinned migrations through `0003_closed_santa_claus.sql`. Existing V1 envelopes remain accepted only with the exact original 3-migration manifest and original 14-table schema. Their original digest is checked before adding an empty experiments table to the isolated recovery copy. Arbitrary historical prefixes and future manifests are rejected. The recovery CLI checks and applies all four current pinned migrations, remaps experiment run references, preserves passive experiment evidence, and confirms all seven credential/runtime tables (including operation_ticks) remain empty. No telemetry history is invented for older backups.
+
+
+## V4 baseline snapshot compatibility
+
+Current exports pin six migrations through `0005_freezing_jackpot.sql`. V1, V2 and V3 retain their exact original inventories and manifests; restoration adds empty tables only after validating the original digest. The new `impact_baselines` table preserves the actual GA4 property, host scope, dates, time zone, quality flags, counts, query key and content digest. Validation rejects incompatible parent windows, unknown fields and altered keys/digests. A restored baseline contains no renewable Google authorization and cannot perform network requests.

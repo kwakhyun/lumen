@@ -7,6 +7,7 @@ import type { ImpactArm, ImpactComparison, ImpactDetail, ImpactOutcome, ImpactPh
 import { Badge, Button, Empty, Field, Modal, Panel, Skeleton, downloadFile, numberLabel } from '../ui';
 import { localDateTime, requestJson, useResource } from '../client';
 import { impactCurrencyDigits, impactKoreanTimeToIso, impactPeriodError, impactRevenueToMinor } from '../impact-inputs';
+import { BeforeSearchBaseline, Ga4Baseline, SearchImport } from './impact-automation';
 import '../impact.css';
 
 const armLabel = { treatment: '개선 대상', control: '비교 대상' };
@@ -24,7 +25,7 @@ const nowKst = () => new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().sli
 const moneyDigits = impactCurrencyDigits;
 const money = (value: number | null, currency: string) => value === null ? '측정 불가' : new Intl.NumberFormat('ko-KR', { style: 'currency', currency, maximumFractionDigits: 2 }).format(value / 10 ** moneyDigits(currency));
 const safeLink = (value: string) => { try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : undefined; } catch { return undefined; } };
-type Editor = 'plan' | 'search' | 'outcome' | null;
+type Editor = 'plan' | 'search' | 'import' | 'outcome' | null;
 type VoidRecord = { kind: 'search' | 'outcome'; id: string };
 
 export default function Impact({ state }: { state: SiteState }) {
@@ -94,10 +95,11 @@ function ImpactStudyDetail({ siteId, studyId, onBack }: { siteId: string; studyI
         <div className="d-impact-tabs" aria-label="검증 기록 보기">{([['results', '비교 결과'], ['searches', '검색 근거'], ['outcomes', '방문과 구매'], ['plan', '고정된 계획']] as const).map(([value, title]) => <Button key={value} variant={tab === value ? 'primary' : 'quiet'} aria-pressed={tab === value} onClick={() => setTab(value)}>{title}</Button>)}</div>
       </Panel>
       {notice && <p className="d-impact-notice" role="status">{notice}</p>}
-      {tab === 'results' && <Results detail={detail} onSearch={() => open('search')} onOutcome={() => open('outcome')} />}
-      {tab === 'searches' && <Panel title="실제 AI 검색 관측" subtitle="답변이 없거나 오류가 난 경우도 남기세요. 결과가 좋을 때만 기록하면 비교가 왜곡됩니다." action={<Button variant="primary" onClick={() => open('search')}><Plus size={16} />검색 결과 기록</Button>}><div className="d-card-body"><Help>검색 확인 화면의 원래 인용만 인용률에 포함해요. 이후 따로 찾아본 검색 결과는 참고 자료로만 보관합니다. 입력 오류는 사유를 남겨 제외한 뒤 새로 기록하세요.</Help></div>{detail.searches.length ? <div className="d-impact-records">{detail.searches.map(record => <SearchRecord key={record.id} record={record} study={detail.study} onVoid={() => { setError(''); setVoidRecord({ kind: 'search', id: record.id }); }} />)}</div> : <Empty title="아직 검색 관측이 없어요" text="계획에 저장한 질문으로 AI 검색을 직접 확인한 뒤 결과와 근거를 기록하세요. Lumen에서 자동으로 검색하지 않습니다." />}</Panel>}
+      {tab === 'results' && <><BeforeSearchBaseline detail={detail} /><Ga4Baseline siteId={siteId} study={detail.study} /><Results detail={detail} onSearch={() => open('search')} onOutcome={() => open('outcome')} /></>}
+      {tab === 'searches' && <Panel title="실제 AI 검색 관측" subtitle="답변이 없거나 오류가 난 경우도 남기세요. 결과가 좋을 때만 기록하면 비교가 왜곡됩니다." action={<div className="d-row-inline"><Button onClick={() => open('import')}>검색 관측 가져오기</Button><Button variant="primary" onClick={() => open('search')}><Plus size={16} />검색 결과 기록</Button></div>}><div className="d-card-body"><Help>검색 확인 화면의 원래 인용만 인용률에 포함해요. 이후 따로 찾아본 검색 결과는 참고 자료로만 보관합니다. 입력 오류는 사유를 남겨 제외한 뒤 새로 기록하세요.</Help></div>{detail.searches.length ? <div className="d-impact-records">{detail.searches.map(record => <SearchRecord key={record.id} record={record} study={detail.study} onVoid={() => { setError(''); setVoidRecord({ kind: 'search', id: record.id }); }} />)}</div> : <Empty title="아직 검색 관측이 없어요" text="계획에 저장한 질문으로 AI 검색을 확인한 뒤 결과를 기록하거나, 확인한 관측 JSON을 가져오세요. Lumen이 검색 결과를 임의로 생성하지 않습니다." />}</Panel>}
       {tab === 'outcomes' && <Panel title="방문과 구매 집계" subtitle="개선 대상과 비교 대상의 변경 전후, 총 4개 구간을 같은 기준으로 기록하세요." action={<Button variant="primary" onClick={() => open('outcome')}><Plus size={16} />집계 기록</Button>}><div className="d-card-body"><Help>이 기록은 GA4나 판매 시스템 보고서에서 직접 옮긴 집계예요. 기존 GA4 연결에 새 요청을 보내지 않습니다. 확인하지 못한 값은 비워 두세요. 방문에서 구매로 이어진 경로가 확인되지 않으면 AI의 매출 기여로 단정할 수 없어요.</Help></div>{detail.outcomes.length ? <div className="d-impact-records">{detail.outcomes.map(record => <OutcomeRecord key={record.id} record={record} onVoid={() => { setError(''); setVoidRecord({ kind: 'outcome', id: record.id }); }} />)}</div> : <Empty title="아직 방문과 구매 집계가 없어요" text="기간 전체를 포함한 보고서에서 같은 채널 필터와 전환 정의로 집계하세요. 개인정보나 개별 주문 정보는 넣지 마세요." />}</Panel>}
       {tab === 'plan' && <PlanDetails study={detail.study} />}
+      {editor === 'import' && <SearchImport siteId={siteId} detail={detail} onClose={() => setEditor(null)} onSaved={resource.setData} />}
       {editor === 'search' && <SearchForm detail={detail} busy={busy} error={error} onClose={() => setEditor(null)} onSave={observation => save('add_search', { observation })} />}
       {editor === 'outcome' && <OutcomeForm detail={detail} busy={busy} error={error} onClose={() => setEditor(null)} onSave={outcome => save('add_outcome', { outcome })} />}
       {voidRecord && <Modal title="잘못된 기록을 집계에서 제외" subtitle="원본을 삭제하지 않고 제외 시각과 사유를 보관합니다. 필요한 경우 올바른 값으로 새 기록을 추가하세요." onClose={() => setVoidRecord(null)} dismissDisabled={busy}><form className="d-form" onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); void save(`void_${voidRecord.kind}`, { id: voidRecord.id, reason: form.get('reason') }, 'PATCH'); }}><Field label="제외 사유"><textarea name="reason" required minLength={5} maxLength={1000} placeholder="예: 변경 전 보고서에 기간 밖의 방문이 포함되어 다시 집계해야 함" /></Field><FormEnd busy={busy} error={error} onClose={() => setVoidRecord(null)} label="사유를 남기고 제외" /></form></Modal>}

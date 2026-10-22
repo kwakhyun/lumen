@@ -19,8 +19,8 @@ export async function restoreToEmptyDatabase(db: D1Database, input: unknown): Pr
     if (value === null) return null;
     const old = String(value); if (!idMap.has(old)) idMap.set(old, crypto.randomUUID()); return idMap.get(old)!;
   }
-  // Validate the original V1 digest first. Only the isolated copy gains an empty
-  // experiments table; never rewrite the historical envelope or its digest.
+  // Validate each historical digest first. Only the isolated copy gains empty
+  // tables added later; never rewrite the historical envelope or its digest.
   const tables = Object.fromEntries(BACKUP_TABLE_NAMES.map(name => [name, structuredClone(backup.tables[name] || [])])) as BackupTables;
   let stoppedAnswers = 0, stoppedExecutions = 0;
   const newSiteId = remap(backup.scope.sourceSiteId)!;

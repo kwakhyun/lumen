@@ -66,7 +66,7 @@ async function acquire(ownerId: string, siteId: string, duration = 180000): Prom
   return { row, lease };
 }
 async function release(ownerId: string, siteId: string, lease: string): Promise<void> { await integrationDb().prepare('UPDATE ga4_connections SET lease_token=NULL,lease_until=0 WHERE site_id=? AND owner_id=? AND lease_token=?').bind(siteId, ownerId, lease).run(); }
-async function tokenForLease(row: Connection, lease: string): Promise<string> {
+async function tokenForLease(row: Connection, lease: string, preserveCredentials = false): Promise<string> {
   try {
     // Await inside the guarded block so invalid cached ciphertext also transitions
     // the connection to reconnect_required instead of leaving a false connected badge.
@@ -82,13 +82,18 @@ async function tokenForLease(row: Connection, lease: string): Promise<string> {
     if (!updated.meta.changes) throw new ProductError(409, 'Google Analytics connection changed during refresh.', 'integration_changed');
     return tokens.access_token;
   } catch (error) {
-    if (error instanceof ProductError && ['oauth_revoked', 'integration_credentials_invalid'].includes(error.code)) await integrationDb().prepare('UPDATE ga4_connections SET status=\'reconnect_required\',access_cipher=NULL,refresh_cipher=NULL,access_expires=0,error=?,updated_at=? WHERE site_id=? AND owner_id=? AND lease_token=? AND revision=?').bind('Google access expired or was revoked. Reconnect to continue.', isoNow(), row.site_id, row.owner_id, lease, row.revision).run();
+    if (error instanceof ProductError && ['oauth_revoked', 'integration_credentials_invalid'].includes(error.code)) {
+      const statement = preserveCredentials
+        ? 'UPDATE ga4_connections SET status=\'reconnect_required\',access_expires=0,error=?,updated_at=? WHERE site_id=? AND owner_id=? AND lease_token=? AND revision=?'
+        : 'UPDATE ga4_connections SET status=\'reconnect_required\',access_cipher=NULL,refresh_cipher=NULL,access_expires=0,error=?,updated_at=? WHERE site_id=? AND owner_id=? AND lease_token=? AND revision=?';
+      await integrationDb().prepare(statement).bind('Google access expired or was revoked. Reconnect to continue.', isoNow(), row.site_id, row.owner_id, lease, row.revision).run();
+    }
     throw error;
   }
 }
-async function withConnection<T>(ownerId: string, siteId: string, action: (row: Connection, lease: string, access: string) => Promise<T>): Promise<T> {
+async function withConnection<T>(ownerId: string, siteId: string, action: (row: Connection, lease: string, access: string) => Promise<T>, preserveCredentials = false): Promise<T> {
   await liveSite(ownerId, siteId); requireConfigured(); const { row, lease } = await acquire(ownerId, siteId);
-  try { return await action(row, lease, await tokenForLease(row, lease)); }
+  try { return await action(row, lease, await tokenForLease(row, lease, preserveCredentials)); }
   catch (error) {
     if (error instanceof ProductError && error.code === 'integration_unauthorized') await integrationDb().prepare('UPDATE ga4_connections SET access_expires=0,error=? WHERE site_id=? AND owner_id=? AND lease_token=?').bind('Google access was rejected. Retry to refresh authorization, or reconnect.', siteId, ownerId, lease).run();
     throw error;
@@ -257,4 +262,58 @@ export async function disconnectGa4(ownerId: string, siteId: string): Promise<GA
     integrationDb().prepare('DELETE FROM oauth_states WHERE site_id=? AND owner_id=?').bind(siteId, ownerId),
   ]);
   return ga4Status(ownerId, siteId);
+}
+
+/** Explicit, bounded baseline read. Reuses the current OAuth grant and never replaces its saved traffic report. */
+export function ga4BaselineDateRange(timeZone: unknown, requestedStartDate: string, requestedEndDate: string, timestamp = Date.now()) {
+  const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+  if (!validDate(requestedStartDate) || !validDate(requestedEndDate) || requestedStartDate > requestedEndDate || Date.parse(requestedEndDate) - Date.parse(requestedStartDate) >= 90 * 86400000) throw new ProductError(400, 'GA4 기준 기간은 1~90일의 유효한 날짜여야 해요.', 'invalid_input');
+  const calendar = ga4DateRange(timeZone, 7, timestamp), endDate = requestedEndDate < calendar.endDate ? requestedEndDate : calendar.endDate;
+  if (endDate < requestedStartDate) throw new ProductError(409, 'GA4 속성 시간대에서 기준 기간의 하루가 끝난 뒤 가져올 수 있어요.', 'ga4_baseline_not_ready');
+  return { startDate: requestedStartDate, endDate, timeZone: calendar.timeZone };
+}
+export const GA4_BASELINE_SOURCE_PATTERN = AI_SOURCE_PATTERN;
+export function mapGa4BaselineAggregate(data: Record<string, unknown>, metrics: string[], timeZone: string): number[] {
+  verifyHeaders(data, [], metrics);
+  if (reportingCalendar(record(data.metadata).timeZone).resolvedOptions().timeZone !== timeZone) throw new ProductError(409, 'GA4 보고 시간대가 달라졌어요. 다시 가져와 주세요.', 'ga4_report_changed');
+  const rows = array(data.rows), count = data.rowCount === undefined && rows.length === 0 ? 0 : data.rowCount;
+  if (rows.length > 1 || count !== rows.length || rows.some(row => array(row.dimensionValues).length !== 0)) throw new ProductError(502, 'GA4 집계 응답의 행 수가 일치하지 않아요.', 'integration_response_invalid');
+  if (!rows.length) return metrics.map(() => 0);
+  const raw = values(rows[0], 'metricValues');
+  if (raw.length !== metrics.length) throw new ProductError(502, 'GA4 집계 응답의 지표가 일치하지 않아요.', 'integration_response_invalid');
+  return raw.map(value => { const parsed = number(value); if (!Number.isSafeInteger(parsed) || parsed > 1_000_000_000) throw new ProductError(502, 'GA4 세션과 조회수는 유효한 정수여야 해요.', 'integration_response_invalid'); return parsed; });
+}
+export async function readGa4Baseline<T = import('./impact-baseline-types').ImpactBaselinePayload>(ownerId: string, siteId: string, requestedStartDate: string, requestedEndDate: string, save?: (payload: import('./impact-baseline-types').ImpactBaselinePayload, guard: { lease: string; revision: number; propertyId: string }) => Promise<T>): Promise<T> {
+  const site = await liveSite(ownerId, siteId), hostName = site.domain.toLowerCase();
+  if (!/^[a-z0-9.-]{3,253}$/.test(hostName)) throw new ProductError(400, '브랜드의 도메인을 확인해 주세요.', 'invalid_input');
+  return withConnection(ownerId, siteId, async (row, lease, access) => {
+    if (!row.property_id || !/^\d{1,20}$/.test(row.property_id)) throw new ProductError(409, '연결한 GA4 속성을 먼저 선택해 주세요.', 'ga4_property_required');
+    const property = await remoteJson(`https://analyticsadmin.googleapis.com/v1beta/properties/${row.property_id}`, { headers: { Authorization: `Bearer ${access}` } }, 'Google Analytics');
+    if (property.name !== `properties/${row.property_id}` || property.deleteTime) throw new ProductError(409, '연결한 GA4 속성을 사용할 수 없어요.', 'ga4_property_unavailable');
+    const { startDate, endDate, timeZone } = ga4BaselineDateRange(property.timeZone, requestedStartDate, requestedEndDate);
+    const hostFilter = { filter: { fieldName: 'hostName', inListFilter: { values: [hostName, `www.${hostName}`], caseSensitive: false } } };
+    const request = (metrics: string[], ai = false) => remoteJson(`https://analyticsdata.googleapis.com/v1beta/properties/${row.property_id}:runReport`, {
+      method: 'POST', headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ dateRanges: [{ startDate, endDate }], metrics: metrics.map(name => ({ name })), dimensionFilter: ai ? { andGroup: { expressions: [hostFilter, { filter: { fieldName: 'sessionSource', stringFilter: { matchType: 'FULL_REGEXP', value: AI_SOURCE_PATTERN, caseSensitive: false } } }] } } : hostFilter, limit: '1', returnPropertyQuota: true }),
+    }, 'Google Analytics');
+    // Both totals are server aggregates; users and per-source rows are never summed.
+    const totals = await request(['sessions', 'screenPageViews']), ai = await request(['sessions'], true);
+    const [totalSessions, totalViews] = mapGa4BaselineAggregate(totals, ['sessions', 'screenPageViews'], timeZone), [aiSessions] = mapGa4BaselineAggregate(ai, ['sessions'], timeZone);
+    if (aiSessions > totalSessions) throw new ProductError(409, '조회 도중 GA4 집계가 달라졌어요. 기존 자료를 유지하며 나중에 다시 가져올 수 있어요.', 'ga4_report_changed');
+    const metadata = [record(totals.metadata), record(ai.metadata)];
+    const dataQuality = { subjectToThresholding: metadata.some(m => m.subjectToThresholding === true), dataLossFromOtherRow: metadata.some(m => m.dataLossFromOtherRow === true), sampled: metadata.some(m => array(m.samplingMetadatas).length > 0), truncated: metadata.some(m => array(m.dataTruncationReasons).length > 0), emptyReasons: metadata.flatMap(m => typeof m.emptyReason === 'string' && m.emptyReason ? [m.emptyReason.slice(0, 500)] : []) };
+    const notes = [
+      `GA4에 기록된 ${hostName} 및 www.${hostName}의 합계입니다. 다른 하위 도메인은 포함하지 않으며 개선 대상과 비교 대상의 성과 집계로 사용하지 않습니다.`,
+      `날짜는 GA4 속성 시간대(${timeZone}) 기준입니다. UTC로 작성한 검증 계획의 전후 비교값과 구분합니다.`,
+      'AI 유입은 지정된 AI 서비스 도메인이 세션 출처에 남은 경우입니다. 직접 방문이나 출처가 사라진 유입은 포함되지 않을 수 있습니다.',
+      '0은 요청 조건에 맞는 GA4 기록이 없다는 뜻입니다. 계측 누락이나 동의하지 않은 방문까지 없었다는 뜻은 아닙니다.',
+      '전환 세션, 주문과 매출은 이 요청으로 측정하지 않으며 미측정으로 남깁니다. GA4 데이터는 처리 지연으로 변경될 수 있습니다.',
+    ];
+    if (endDate !== requestedEndDate) notes.push('기준 기간이 진행 중이어서 GA4 속성 시간대의 어제까지만 가져왔습니다.');
+    if (dataQuality.subjectToThresholding || dataQuality.dataLossFromOtherRow || dataQuality.sampled || dataQuality.truncated || dataQuality.emptyReasons.length) notes.push('GA4 응답에 데이터 품질 제한이 있습니다. 임계치, 샘플링, 데이터 누락과 빈 응답 사유를 확인하세요.');
+    const payload: import('./impact-baseline-types').ImpactBaselinePayload = { source: 'ga4_api', metricVersion: 'ga4-baseline-v1', propertyId: row.property_id, propertyName: typeof property.displayName === 'string' ? property.displayName.slice(0, 200) : row.property_name || row.property_id, fetchedAt: isoNow(), requestedStartDate, requestedEndDate, startDate, endDate, timeZone, hostName, totalSessions, aiSessions, totalViews, convertingSessions: null, orders: null, revenueMinor: null, sourcePattern: AI_SOURCE_PATTERN, scope: 'tracked_site_sessions', completeForPlan: false, dataQuality, notes };
+    const current = await connection(ownerId, siteId);
+    if (!current || current.status !== 'connected' || current.property_id !== row.property_id || current.revision !== row.revision || current.lease_token !== lease || current.lease_until <= Date.now()) throw new ProductError(409, '조회 중 GA4 연결이 변경되어 새 자료를 저장하지 않았어요.', 'integration_changed');
+    // Saving while the existing connection lease is held also prevents overlapping imports.
+    return save ? save(payload, { lease, revision: row.revision, propertyId: row.property_id }) : payload as T;
+  }, true);
 }
