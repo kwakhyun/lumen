@@ -1,7 +1,11 @@
 import { z } from 'zod';
+import { impactPlanSchema, impactSearchSchema, impactOutcomeSchema, assertSearchMatchesPlan, assertOutcomeMatchesPlan } from './impact-validation';
+import { IMPACT_METRIC_VERSION, type ImpactPlan, type ImpactSearchInput, type ImpactOutcomeInput } from './impact-types';
+import { impactDigest } from './impact-integrity';
 
 export const BACKUP_FORMAT = 'lumen-workspace-backup';
-export const BACKUP_VERSION = 2;
+export const BACKUP_VERSION = 3;
+export const PREVIOUS_BACKUP_VERSION = 2;
 export const LEGACY_BACKUP_VERSION = 1;
 export const BACKUP_MAX_BYTES = 8 * 1024 * 1024;
 export const BACKUP_MAX_ROWS = 20000;
@@ -11,9 +15,13 @@ export const LEGACY_BACKUP_MIGRATIONS = [
   { name: '0002_nostalgic_wasp.sql', sha256: 'a233d6a33f208b4889df5ac57dfd1f694e10ed71744f96b0def8142f4783dde2' },
 ] as const;
 // Append new, checksum-pinned migrations here; the V1 manifest stays immutable.
-export const BACKUP_MIGRATIONS = [
+export const V2_BACKUP_MIGRATIONS = [
   ...LEGACY_BACKUP_MIGRATIONS,
   { name: '0003_closed_santa_claus.sql', sha256: 'd1e95bbc9d9b606e51322a7caadae770e653c58d99d757f7f43d0f54915b338e' },
+] as const;
+// New migrations are appended without changing either historical manifest.
+export const BACKUP_MIGRATIONS = [...V2_BACKUP_MIGRATIONS,
+  { name: '0004_medical_master_chief.sql', sha256: 'ecf08e5e834514f01b6a7c111b0ef33fc848d31d2296f854f5a10e5c51a94d7d' },
 ] as const;
 export class BackupError extends Error {
   code: string;
@@ -43,6 +51,7 @@ const experimentSnapshot = z.object({
 type ExperimentSnapshot = z.infer<typeof experimentSnapshot>;
 const siteFields = { id, name: str(200), domain: str(300), description: str(5000), industry: str(200), language: str(100), country: str(100), mode, created_at: date, updated_at: date };
 const child = { id, site_id: id };
+const evidenceFields = { ...child, study_id: id, created_at: date, digest: z.string().regex(/^[a-f0-9]{64}$/), voided_at: nullableDate, void_reason: str(1000).min(3).nullable() };
 const table = (shape: z.ZodRawShape, maxRows: number, maxBytes: number) => ({ schema: z.object(shape).strict(), maxRows, maxBytes });
 const KiB = 1024;
 /** Explicit export allowlist. Never SELECT *; credentials are not read into memory. */
@@ -62,6 +71,9 @@ export const BACKUP_TABLES = {
   operation_audit: table({ ...child, action: str(200), subject_id: id.nullable(), summary: str(5000), created_at: date }, 4000, 512 * KiB),
   ga4_connections: table({ site_id: id, property_id: z.string().regex(/^\d{1,20}$/).nullable(), property_name: str(200).nullable(), report: jsonText(report, 500000).nullable(), last_synced_at: nullableDate, created_at: date, updated_at: date }, 1, 512 * KiB),
   improvement_experiments: table({ ...child, title: str(200).min(3), hypothesis: str(2000).min(5), intervention: str(2000).min(3), metric: z.enum(['mentionRate', 'citationRate']), target_delta: z.number().int().min(1).max(100), status: z.enum(['draft', 'observing', 'reviewed']), baseline_run_id: id, followup_run_id: id.nullable(), baseline_snapshot: jsonText(experimentSnapshot, 500000), followup_snapshot: jsonText(experimentSnapshot, 500000).nullable(), notes: str(4000), created_at: date, updated_at: date }, 100, 512 * KiB),
+  impact_studies: table({ ...child, plan: jsonText(impactPlanSchema, 100000), brand: jsonText(z.object({ name: str(200).min(1), domain: str(300).min(1) }).strict(), 1000), metric_version: z.literal(IMPACT_METRIC_VERSION), created_at: date, digest: z.string().regex(/^[a-f0-9]{64}$/) }, 50, 512 * KiB),
+  impact_searches: table({ ...evidenceFields, phase: z.enum(['before', 'after']), query_id: id, repetition: z.number().int().min(1).max(3), payload: jsonText(impactSearchSchema, 100000) }, 5000, 3 * 1024 * KiB),
+  impact_outcomes: table({ ...evidenceFields, arm: z.enum(['treatment', 'control']), phase: z.enum(['before', 'after']), payload: jsonText(impactOutcomeSchema, 20000) }, 1000, 1024 * KiB),
 } as const;
 export type BackupTableName = keyof typeof BACKUP_TABLES;
 export type BackupRow = Record<string, string | number | null>;
@@ -70,9 +82,13 @@ export const BACKUP_TABLE_NAMES = Object.keys(BACKUP_TABLES) as BackupTableName[
 // Freeze the historical table inventory as well as its migration manifest.
 export const LEGACY_BACKUP_TABLE_NAMES = ['sites', 'prompts', 'competitors', 'runs', 'answers', 'documents', 'tasks', 'personas', 'traffic', 'collection_schedules', 'scheduled_executions', 'operation_alerts', 'operation_audit', 'ga4_connections'] as const satisfies readonly BackupTableName[];
 type LegacyBackupTableName = typeof LEGACY_BACKUP_TABLE_NAMES[number];
-function backupSchemaFor(version: typeof BACKUP_VERSION | typeof LEGACY_BACKUP_VERSION) {
-  const names = version === LEGACY_BACKUP_VERSION ? LEGACY_BACKUP_TABLE_NAMES : BACKUP_TABLE_NAMES;
-  const manifest = version === LEGACY_BACKUP_VERSION ? LEGACY_BACKUP_MIGRATIONS : BACKUP_MIGRATIONS;
+export const V2_BACKUP_TABLE_NAMES = [...LEGACY_BACKUP_TABLE_NAMES, 'improvement_experiments'] as const satisfies readonly BackupTableName[];
+type BackupVersion = typeof BACKUP_VERSION | typeof PREVIOUS_BACKUP_VERSION | typeof LEGACY_BACKUP_VERSION;
+const tableNamesFor = (version: BackupVersion) => version === 1 ? LEGACY_BACKUP_TABLE_NAMES : version === 2 ? V2_BACKUP_TABLE_NAMES : BACKUP_TABLE_NAMES;
+const migrationsFor = (version: BackupVersion) => version === 1 ? LEGACY_BACKUP_MIGRATIONS : version === 2 ? V2_BACKUP_MIGRATIONS : BACKUP_MIGRATIONS;
+function backupSchemaFor(version: BackupVersion) {
+  const names = tableNamesFor(version);
+  const manifest = migrationsFor(version);
   const tableSchemas = Object.fromEntries(names.map(name => [name, z.array(BACKUP_TABLES[name].schema).max(BACKUP_TABLES[name].maxRows)]));
   const countSchemas = Object.fromEntries(names.map(name => [name, num]));
   return z.object({
@@ -86,13 +102,14 @@ function backupSchemaFor(version: typeof BACKUP_VERSION | typeof LEGACY_BACKUP_V
   }).strict();
 }
 const currentBackupSchema = backupSchemaFor(BACKUP_VERSION);
+const previousBackupSchema = backupSchemaFor(PREVIOUS_BACKUP_VERSION);
 const legacyBackupSchema = backupSchemaFor(LEGACY_BACKUP_VERSION);
 export type WorkspaceBackup = {
-  format: typeof BACKUP_FORMAT; version: typeof BACKUP_VERSION | typeof LEGACY_BACKUP_VERSION; schemaMigrations: { name: string; sha256: string }[];
+  format: typeof BACKUP_FORMAT; version: BackupVersion; schemaMigrations: { name: string; sha256: string }[];
   exportedAt: string; scope: { kind: 'workspace'; sourceSiteId: string };
   policy: { credentials: 'excluded'; restoration: 'isolated-disabled-copy' };
-  counts: Record<LegacyBackupTableName, number> & Partial<Record<'improvement_experiments', number>>;
-  tables: Record<LegacyBackupTableName, BackupRow[]> & Partial<Record<'improvement_experiments', BackupRow[]>>;
+  counts: Record<LegacyBackupTableName, number> & Partial<Record<Exclude<BackupTableName, LegacyBackupTableName>, number>>;
+  tables: Record<LegacyBackupTableName, BackupRow[]> & Partial<Record<Exclude<BackupTableName, LegacyBackupTableName>, BackupRow[]>>;
   integrity: { algorithm: 'SHA-256'; digest: string };
 };
 /** Canonical JSON is used for corruption detection, not authentication or encryption. */
@@ -108,7 +125,7 @@ export function validateRelationships(data: WorkspaceBackup): void {
   if (tables.sites.length !== 1 || tables.sites[0].id !== scope.sourceSiteId) fail();
   let total = 0;
   const ids = new Map<BackupTableName, Set<string>>();
-  const names = data.version === LEGACY_BACKUP_VERSION ? LEGACY_BACKUP_TABLE_NAMES : BACKUP_TABLE_NAMES;
+  const names = tableNamesFor(data.version);
   for (const name of names) {
     const rows = tables[name]!; total += rows.length;
     if (data.counts[name] !== rows.length) fail();
@@ -157,20 +174,57 @@ export function validateRelationships(data: WorkspaceBackup): void {
     }
     if (followup && (canonicalJson(baseline.brands) !== canonicalJson(followup.brands) || canonicalJson(cohort(baseline)) !== canonicalJson(cohort(followup)))) fail('Experiment follow-up cohort differs from its baseline.');
   }
+  const studies = new Map((tables.impact_studies || []).map(row => [row.id, JSON.parse(String(row.plan)) as ImpactPlan]));
+  for (const name of ['impact_searches', 'impact_outcomes'] as const) {
+    const activeKeys = new Set<string>();
+    for (const row of tables[name] || []) {
+      const plan = studies.get(row.study_id);
+      if (!plan) fail('Impact evidence references a missing study.');
+      if ((row.voided_at === null) !== (row.void_reason === null) || row.voided_at !== null && Date.parse(String(row.voided_at)) < Date.parse(String(row.created_at))) fail('Impact evidence has invalid exclusion history.');
+      const payload = JSON.parse(String(row.payload));
+      if (payload.phase !== row.phase) fail('Impact evidence index differs from its original record.');
+      let key: string;
+      try {
+        if (name === 'impact_searches') {
+          if (payload.queryId !== row.query_id || payload.repetition !== row.repetition) fail('Impact search index differs from its original record.');
+          assertSearchMatchesPlan(plan, payload as ImpactSearchInput, Date.parse(String(row.created_at)));
+          key = JSON.stringify([row.study_id, row.phase, row.query_id, row.repetition]);
+        } else {
+          if (payload.arm !== row.arm) fail('Impact outcome index differs from its original record.');
+          assertOutcomeMatchesPlan(plan, payload as ImpactOutcomeInput, Date.parse(String(row.created_at)));
+          key = JSON.stringify([row.study_id, row.arm, row.phase]);
+        }
+      } catch { fail('Impact evidence is inconsistent with the frozen study plan.'); }
+      if (row.voided_at === null) {
+        if (activeKeys.has(key!)) fail('Impact evidence contains duplicate active records.');
+        activeKeys.add(key!);
+      }
+    }
+  }
   // answers.prompt_id intentionally has no FK: deleted prompts retain historical answers.
 }
 export async function validateBackup(input: unknown): Promise<WorkspaceBackup> {
   const version = input !== null && typeof input === 'object' && !Array.isArray(input) ? (input as { version?: unknown }).version : undefined;
-  if (version !== LEGACY_BACKUP_VERSION && version !== BACKUP_VERSION) throw new BackupError('backup_schema_unsupported', 'Backup schema version is not supported.');
-  const result = (version === LEGACY_BACKUP_VERSION ? legacyBackupSchema : currentBackupSchema).safeParse(input);
+  if (version !== LEGACY_BACKUP_VERSION && version !== PREVIOUS_BACKUP_VERSION && version !== BACKUP_VERSION) throw new BackupError('backup_schema_unsupported', 'Backup schema version is not supported.');
+  const result = (version === LEGACY_BACKUP_VERSION ? legacyBackupSchema : version === PREVIOUS_BACKUP_VERSION ? previousBackupSchema : currentBackupSchema).safeParse(input);
   if (!result.success) throw new BackupError('backup_invalid', 'Backup data is invalid or incomplete.', 400, result.error.issues.slice(0, 20).map(issue => ({ code: issue.code, path: issue.path }))); 
   const data = result.data as WorkspaceBackup;
-  const manifest = version === LEGACY_BACKUP_VERSION ? LEGACY_BACKUP_MIGRATIONS : BACKUP_MIGRATIONS;
+  const manifest = migrationsFor(version);
   if (canonicalJson(data.schemaMigrations) !== canonicalJson(manifest)) throw new BackupError('backup_schema_unsupported', 'Backup schema version is not supported.');
   if (new TextEncoder().encode(canonicalJson(data)).byteLength > BACKUP_MAX_BYTES) throw new BackupError('backup_too_large', 'Backup exceeds the supported byte limit.', 413);
   validateRelationships(data);
   const { integrity, ...payload } = data;
   if (await sha256(canonicalJson(payload)) !== integrity.digest) throw new BackupError('backup_digest_mismatch', 'Backup integrity check failed.');
+  const studyDigests = new Map<string | number | null, string>();
+  for (const row of data.tables.impact_studies || []) {
+    const digest = await impactDigest({ metricVersion: row.metric_version, plan: JSON.parse(String(row.plan)), brand: JSON.parse(String(row.brand)) });
+    if (digest !== row.digest) fail('Impact study integrity check failed.');
+    studyDigests.set(row.id, digest);
+  }
+  for (const name of ['impact_searches', 'impact_outcomes'] as const) for (const row of data.tables[name] || []) {
+    const digest = await impactDigest({ studyDigest: studyDigests.get(row.study_id), kind: name === 'impact_searches' ? 'add_search' : 'add_outcome', payload: JSON.parse(String(row.payload)) });
+    if (digest !== row.digest) fail('Impact evidence integrity check failed.');
+  }
   return data;
 }
 export async function createBackup(siteId: string, tables: BackupTables, exportedAt = new Date().toISOString()): Promise<WorkspaceBackup> {

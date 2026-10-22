@@ -188,7 +188,9 @@ test('new free user reaches a first saved answer without paid calls or duplicate
     assert.equal(state.answers[0].id, firstAnswerId);
     assert.equal(state.metrics.answerCount, 1);
     assert.equal(state.metrics.mentionRate, 100);
-    assert.equal(state.metrics.citationRate, 0);
+    assert.equal(state.metrics.citationRate, null);
+    assert.equal(state.metrics.citationEligibleAnswerCount, 0);
+    assert.equal(state.metrics.citationExcludedAnswerCount, 1);
     const usage = (await call('GET', 'usage')).data;
     assert.equal(usage.available, 9);
     assert.equal(usage.daily.used, 1);
@@ -240,7 +242,10 @@ test('new free user reaches a first saved answer without paid calls or duplicate
     assert.equal(state.answers.length, 2);
     assert.equal(state.answers.find(answer => answer.id === firstAnswerId).text, answerText);
     assert.equal(state.answers.filter(answer => answer.status === 'completed').length, 1);
-    assert.equal(state.metrics.answerCount, 1);
+    assert.equal(state.metrics.answerCount, 0);
+    assert.equal(state.metrics.failedAnswerCount, 1);
+    assert.equal(state.metrics.citationRate, null);
+    assert.equal(state.metrics.series.reduce((sum, point) => sum + point.answerCount, 0), 1);
     assert.deepEqual(await reservations(), { count: 2, units: 2 });
     const usage = (await call('GET', 'usage')).data;
     assert.equal(usage.daily.used, 2);

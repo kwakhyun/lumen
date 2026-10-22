@@ -54,8 +54,8 @@ test('provider citations only use typed annotations; text URLs cannot fabricate 
   assert.equal(r.citations.length,1);assert.equal(r.citations[0].domain,'docs.acme.com');assert.equal(r.citations[0].provenance,'provider_annotation');assert.equal(r.providerResponseId,'resp_test');assert.equal(r.inputTokens,10);
 });
 test('metric denominators exclude failures, deduplicate mentions, and distinguish coverage',()=>{
-  const base={status:'completed',createdAt:'2026-10-18T00:00:00Z',completedAt:null,citations:[]};
-  const a={...base,promptId:'p1',mentions:[{domain:'acme.com',mentioned:true,cited:true,rank:2},{domain:'rival.com',mentioned:true,cited:false,rank:1}]};
+  const base={status:'completed',model:'gpt-4.1-mini',mode:'live',createdAt:'2026-10-18T00:00:00Z',completedAt:null,citations:[]};
+  const a={...base,promptId:'p1',citations:[{domain:'acme.com',url:'https://acme.com/',provenance:'provider_annotation'}],mentions:[{domain:'acme.com',mentioned:true,cited:true,rank:2},{domain:'rival.com',mentioned:true,cited:false,rank:1}]};
   const b={...base,promptId:'p1',mentions:[{domain:'acme.com',mentioned:false,cited:false,rank:null},{domain:'rival.com',mentioned:true,cited:true,rank:1}]};
   const m=computeMetrics({name:'Acme',domain:'acme.com'},[{name:'Rival',domain:'rival.com'}],[a,b,{...base,promptId:'p2',status:'failed',mentions:[]}],[{id:'p1',active:true},{id:'p2',active:true}]);
   assert.equal(m.answerCount,2);assert.equal(m.coverage,50);assert.equal(m.mentionRate,50);assert.equal(m.citationRate,50);assert.equal(m.shareOfVoice,33.3);assert.equal(m.averageRank,2);

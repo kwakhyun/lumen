@@ -1,4 +1,5 @@
 import type { Answer, BrandMention, Citation, Competitor, Metrics, Prompt, Site } from './product-types';
+export const METRICS_VERSION = 'lumen-metrics-v2';
 
 /** Host matching intentionally does not accept suffix lookalikes such as brand.com.attacker.test. */
 export function domainMatches(candidate: string, domain: string): boolean {
@@ -40,25 +41,96 @@ function visibleMentionText(text:string):string {
 }
 export function extractMentions(text:string,citations:Citation[],brands:{name:string;domain:string}[]):BrandMention[] {
   const visible=visibleMentionText(text);
-  const result=brands.map(brand=>{const pos=firstMention(visible,brand.name,brand.domain);return {name:brand.name,domain:brand.domain,mentioned:pos!==null,firstPosition:pos,rank:null as number|null,cited:citations.some(c=>domainMatches(c.domain,brand.domain))};});
+  const seen = new Set<string>();
+  const uniqueBrands = brands.filter(brand => { const key = canonicalDomain(brand.domain); if (seen.has(key)) return false; seen.add(key); return true; });
+  const result=uniqueBrands.map(brand=>{const pos=firstMention(visible,brand.name,brand.domain);return {name:brand.name,domain:brand.domain,mentioned:pos!==null,firstPosition:pos,rank:null as number|null,cited:citations.some(c=>domainMatches(c.domain,brand.domain))};});
   const ordered=result.filter(x=>x.mentioned).sort((a,b)=>a.firstPosition!-b.firstPosition!);
   ordered.forEach((x,i)=>{x.rank=i+1;});return result;
 }
-const pct=(n:number,d:number)=>d?Math.round(n/d*1000)/10:0;
-export function computeMetrics(site:Pick<Site,'name'|'domain'>, competitors:Pick<Competitor,'name'|'domain'>[], answers:Answer[], prompts:Pick<Prompt,'id'|'active'>[], history:Answer[]=answers):Metrics {
-  const completed=answers.filter(a=>a.status==='completed');
-  const active=new Set(prompts.filter(p=>p.active).map(p=>p.id));
-  const answered=new Set(completed.filter(a=>active.has(a.promptId)).map(a=>a.promptId));
-  const brands=[site,...competitors].map((brand,i)=>{
-    const mentions=completed.flatMap(a=>a.mentions.filter(m=>m.domain===brand.domain));
-    const found=mentions.filter(m=>m.mentioned), ranked=found.filter(m=>m.rank!==null);
-    return {name:brand.name,domain:brand.domain,isOwn:i===0,mentions:found.length,citations:mentions.filter(m=>m.cited).length,mentionRate:pct(found.length,completed.length),citationRate:pct(mentions.filter(m=>m.cited).length,completed.length),shareOfVoice:0,averageRank:ranked.length?Math.round(ranked.reduce((s,m)=>s+m.rank!,0)/ranked.length*10)/10:null};
+const pct = (n: number, d: number) => d ? Math.round(n / d * 1000) / 10 : 0;
+const canonicalDomain = (domain: string) => domain.toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+
+/** These collection adapters request web search. Unknown adapters fail closed. */
+export function citationMeasurementAvailable(answer: Pick<Answer, 'mode' | 'model'>): boolean {
+  return answer.mode === 'demo' || (answer.mode === 'live' && ['gpt-4.1-mini', 'perplexity/sonar'].includes(answer.model));
+}
+
+/** Do not promote generated URLs, synthetic live citations, or mismatched hosts into evidence. */
+export function measuredCitations(answer: Pick<Answer, 'mode' | 'model' | 'citations'>): Citation[] {
+  if (!citationMeasurementAvailable(answer)) return [];
+  const provenance = answer.mode === 'demo' ? 'synthetic' : 'provider_annotation';
+  return answer.citations.filter(citation => {
+    const url = safeHttpUrl(citation.url);
+    return citation.provenance === provenance && url !== null && canonicalDomain(url.hostname) === canonicalDomain(citation.domain);
   });
-  const all=brands.reduce((s,b)=>s+b.mentions,0);brands.forEach(b=>{b.shareOfVoice=pct(b.mentions,all);});
-  const dateMap=new Map<string,Answer[]>();for(const a of history.filter(x=>x.status==='completed')){const d=(a.completedAt||a.createdAt).slice(0,10);dateMap.set(d,[...(dateMap.get(d)||[]),a]);}
-  const series=[...dateMap].sort(([a],[b])=>a.localeCompare(b)).map(([date,rows])=>({date,answerCount:rows.length,mentionRate:pct(rows.filter(a=>a.mentions.some(m=>m.domain===site.domain&&m.mentioned)).length,rows.length),citationRate:pct(rows.filter(a=>a.mentions.some(m=>m.domain===site.domain&&m.cited)).length,rows.length)}));
-  const sourceMap=new Map<string,{domain:string;citations:number;url:string;title:string}>();for(const a of completed)for(const c of new Map(a.citations.map(c=>[c.domain,c])).values()){const prev=sourceMap.get(c.domain);sourceMap.set(c.domain,{domain:c.domain,citations:(prev?.citations||0)+1,url:c.url,title:c.title});}
-  return {answerCount:completed.length,promptCount:active.size,coverage:pct(answered.size,active.size),mentionRate:brands[0].mentionRate,citationRate:brands[0].citationRate,shareOfVoice:brands[0].shareOfVoice,averageRank:brands[0].averageRank,brands,series,sources:[...sourceMap.values()].sort((a,b)=>b.citations-a.citations)};
+}
+function uniqueAnswers(answers: Answer[]): Answer[] {
+  const seen = new Set<string>();
+  return answers.filter(answer => {
+    if (!answer.id) return true;
+    if (seen.has(answer.id)) return false;
+    seen.add(answer.id);
+    return true;
+  });
+}
+function brandMention(answer: Answer, domain: string): BrandMention | undefined {
+  // One answer contributes at most one mention for each domain, even with duplicate input records.
+  return answer.mentions.filter(m => canonicalDomain(m.domain) === canonicalDomain(domain) && m.mentioned)
+    .sort((a, b) => (a.firstPosition ?? Infinity) - (b.firstPosition ?? Infinity) || (a.rank ?? Infinity) - (b.rank ?? Infinity))[0];
+}
+export function computeMetrics(site: Pick<Site, 'name' | 'domain'> & Partial<Pick<Site, 'mode'>>, competitors: Pick<Competitor, 'name' | 'domain'>[], answers: Answer[], prompts: Pick<Prompt, 'id' | 'active'>[], history: Answer[] = answers): Metrics {
+  const dataMode = site.mode ?? (answers.length > 0 && answers.every(a => a.mode === 'demo') ? 'demo' : 'live');
+  const scoped = answers.filter(a => a.mode === dataMode);
+  const unique = uniqueAnswers(scoped);
+  const completed = unique.filter(a => a.status === 'completed');
+  const eligible = completed.filter(citationMeasurementAvailable);
+  const evidence = new Map(completed.map(a => [a, measuredCitations(a)]));
+  const active = new Set(prompts.filter(p => p.active).map(p => p.id));
+  const answered = new Set(completed.filter(a => active.has(a.promptId)).map(a => a.promptId));
+  const mentioned = new Set(completed.filter(a => active.has(a.promptId) && brandMention(a, site.domain)).map(a => a.promptId));
+  const uniqueBrands = new Map<string, { name: string; domain: string; isOwn: boolean }>();
+  [site, ...competitors].forEach((brand, i) => {
+    const key = canonicalDomain(brand.domain);
+    if (!uniqueBrands.has(key)) uniqueBrands.set(key, { ...brand, isOwn: i === 0 });
+  });
+  const brandList = [...uniqueBrands.values()];
+  const brands = brandList.map(brand => {
+    const found = completed.flatMap(a => { const m = brandMention(a, brand.domain); return m ? [m] : []; });
+    const ranked = found.filter(m => m.rank !== null);
+    const citations = eligible.filter(a => evidence.get(a)!.some(c => domainMatches(c.domain, brand.domain))).length;
+    return { name: brand.name, domain: brand.domain, isOwn: brand.isOwn, mentions: found.length, citations, mentionRate: pct(found.length, completed.length), citationRate: eligible.length ? pct(citations, eligible.length) : null, shareOfVoice: 0, averageRank: ranked.length ? Math.round(ranked.reduce((sum, m) => sum + m.rank!, 0) / ranked.length * 10) / 10 : null };
+  });
+  const own = brands.find(brand => brand.isOwn)!;
+  const totalBrandMentions = brands.reduce((sum, brand) => sum + brand.mentions, 0);
+  brands.forEach(brand => { brand.shareOfVoice = pct(brand.mentions, totalBrandMentions); });
+  const dateMap = new Map<string, Answer[]>();
+  for (const answer of uniqueAnswers(history.filter(a => a.mode === dataMode && a.status === 'completed'))) {
+    const date = (answer.completedAt || answer.createdAt).slice(0, 10);
+    dateMap.set(date, [...(dateMap.get(date) || []), answer]);
+  }
+  const series = [...dateMap].sort(([a], [b]) => a.localeCompare(b)).map(([date, rows]) => {
+    const citationRows = rows.filter(citationMeasurementAvailable);
+    const mentionCount = rows.filter(a => brandMention(a, site.domain)).length;
+    const citationCount = citationRows.filter(a => measuredCitations(a).some(c => domainMatches(c.domain, site.domain))).length;
+    return { date, answerCount: rows.length, mentionCount, citationCount, citationEligibleAnswerCount: citationRows.length, mentionRate: pct(mentionCount, rows.length), citationRate: citationRows.length ? pct(citationCount, citationRows.length) : null };
+  });
+  const sourceMap = new Map<string, { domain: string; citations: number; url: string; title: string }>();
+  for (const answer of eligible) for (const citation of new Map(evidence.get(answer)!.map(c => [canonicalDomain(c.domain), c])).values()) {
+    const domain = canonicalDomain(citation.domain);
+    const previous = sourceMap.get(domain);
+    sourceMap.set(domain, { domain, citations: (previous?.citations || 0) + 1, url: citation.url, title: citation.title });
+  }
+  return {
+    metricsVersion: METRICS_VERSION, dataMode, totalAnswerCount: unique.length, answerCount: completed.length,
+    failedAnswerCount: unique.filter(a => a.status === 'failed').length, pendingAnswerCount: unique.filter(a => ['pending', 'processing'].includes(a.status)).length,
+    excludedModeAnswerCount: answers.length - scoped.length, duplicateAnswerCount: scoped.length - unique.length,
+    promptCount: active.size, completedPromptCount: answered.size, mentionedPromptCount: mentioned.size,
+    coverage: pct(answered.size, active.size), brandQuestionCoverage: active.size ? pct(mentioned.size, active.size) : null,
+    mentionCount: own.mentions, citationCount: own.citations, totalBrandMentions,
+    citationEligibleAnswerCount: eligible.length, citationExcludedAnswerCount: completed.length - eligible.length,
+    mentionRate: own.mentionRate, citationRate: own.citationRate, shareOfVoice: own.shareOfVoice, averageRank: own.averageRank,
+    brands, series, sources: [...sourceMap.values()].sort((a, b) => b.citations - a.citations),
+  };
 }
 export function csvCell(value: unknown):string {
   let v=String(value??'');if(/^[\s]*[=+@\-\t\r]/.test(v))v=`'${v}`;return `"${v.replace(/"/g,'""')}"`;

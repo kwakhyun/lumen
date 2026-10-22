@@ -28,7 +28,7 @@ export async function restoreToEmptyDatabase(db: D1Database, input: unknown): Pr
   for (const name of BACKUP_TABLE_NAMES) for (const row of tables[name]) {
     if ('id' in row) row.id = remap(row.id);
     if ('site_id' in row) row.site_id = newSiteId;
-    for (const key of ['run_id', 'prompt_id', 'schedule_id', 'execution_id', 'subject_id', 'baseline_run_id', 'followup_run_id']) if (key in row) row[key] = remap(row[key]);
+    for (const key of ['run_id', 'prompt_id', 'schedule_id', 'execution_id', 'subject_id', 'baseline_run_id', 'followup_run_id', 'study_id']) if (key in row) row[key] = remap(row[key]);
     if (ownerTables.has(name)) row.owner_id = RESTORE_OWNER;
     if (name === 'sites') row.tracking_key = crypto.randomUUID();
     if (name === 'runs') { row.lease_token = null; row.lease_until = 0; }

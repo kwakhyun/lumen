@@ -20,7 +20,7 @@ registerHooks({ resolve(specifier, context, next) {
 const format = await import('../lib/backup-format.ts');
 const { restoreToEmptyDatabase, RESTORE_OWNER } = await import('../lib/backup-restore.ts');
 let mf, db, route, exported;
-const ids = Object.fromEntries(['site','other','prompt','deletedPrompt','run','pendingRun','followupRun','otherRun','answer','pendingAnswer','followupAnswer','document','task','persona','traffic','competitor','schedule','alert','audit','experiment','otherExperiment'].map(key => [key,crypto.randomUUID()]));
+const ids = Object.fromEntries(['site','other','prompt','deletedPrompt','run','pendingRun','followupRun','otherRun','answer','pendingAnswer','followupAnswer','document','task','persona','traffic','competitor','schedule','alert','audit','experiment','otherExperiment','study','search','outcome','treatmentQuery','controlQuery'].map(key => [key,crypto.randomUUID()]));
 const at = '2026-10-18T09:00:00.000Z';
 globalThis.__backupTestEnv = {};
 globalThis.__backupTestHeaders = new Headers();
@@ -28,7 +28,11 @@ async function migrate(target) { for (const file of readdirSync(path.join(root, 
 async function insert(table, row) { const keys = Object.keys(row); return db.prepare(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(()=>'?').join(',')})`).bind(...keys.map(key=>row[key])).run(); }
 async function call(siteId=ids.site,user='alice',extra='') { globalThis.__backupTestHeaders=new Headers(user?{'oai-authenticated-user-id':user,'oai-authenticated-user-email':user+'@example.test'}:{}); return route.GET(new Request(`https://lumen.test/api/backup?siteId=${siteId}${extra}`)); }
 async function resign(input) { const {integrity,...payload}=input; return {...payload,integrity:{algorithm:'SHA-256',digest:await format.sha256(format.canonicalJson(payload))}}; }
-async function legacyCopy(input) { const legacy=structuredClone(input);legacy.version=1;legacy.schemaMigrations=structuredClone(format.LEGACY_BACKUP_MIGRATIONS);delete legacy.tables.improvement_experiments;delete legacy.counts.improvement_experiments;return resign(legacy); }
+async function historicalCopy(input, version) { const copy=structuredClone(input);copy.version=version;copy.schemaMigrations=structuredClone(version===1?format.LEGACY_BACKUP_MIGRATIONS:format.V2_BACKUP_MIGRATIONS);const names=version===1?format.LEGACY_BACKUP_TABLE_NAMES:format.V2_BACKUP_TABLE_NAMES;for(const name of Object.keys(copy.tables))if(!names.includes(name)){delete copy.tables[name];delete copy.counts[name];}return resign(copy); }
+const legacyCopy=input=>historicalCopy(input,1);
+const impactPlan = {title:'Content evidence fixture',hypothesis:'Clear comparison information may increase search citations.',changeSummary:'Explain product limits on the treatment page.',changedAt:'2026-10-03T00:00:00.000Z',contentVersion:'fixture-v1',beforeStart:'2026-10-01',beforeEnd:'2026-10-02',afterStart:'2026-10-04',afterEnd:'2026-10-05',context:{surface:'ChatGPT search',model:'observed version',language:'ko',country:'KR',device:'desktop',personalization:'signed out'},queries:[{id:ids.treatmentQuery,question:'Which comparison tool fits a small team?',arm:'treatment',pageUrl:'https://alice.example/comparison'},{id:ids.controlQuery,question:'How to choose a monitoring tool for teams?',arm:'control',pageUrl:'https://alice.example/monitoring'}],repetitions:1,currency:'KRW',outcomeDefinition:'Sessions with at least one completed purchase',attributionRule:'Same AI referral sources, landing pages in each arm, UTC'};
+const impactObservation={phase:'before',queryId:ids.treatmentQuery,repetition:1,observedAt:'2026-10-01T01:00:00.000Z',result:'answer',searchConfirmed:true,answerExcerpt:'A synthetic test excerpt.',brandMention:'absent',citationReview:'complete',evidenceUrl:'https://example.com/fixture',citations:[{url:'https://alice.example/comparison',title:'Follow-up result',relation:'followup_search'}],notes:'Local fixture only'};
+const impactOutcome={arm:'treatment',phase:'before',source:'ga4_export',sourceId:'fixture-property',reportTimeZone:'UTC',definitionConfirmed:true,sourceRef:'fixture-export',rangeStart:'2026-10-01',rangeEnd:'2026-10-02',sessions:100,convertingSessions:2,orders:null,revenueMinor:null,currency:'KRW',notes:'Local fixture only',confounders:''};
 const experimentSnapshot = {version:'lumen-experiment-v1',mode:'live',brands:[{name:'Own brand',domain:'alice.example'}],cells:[{question:'Private question',model:'gpt-4.1-mini',provider:'OpenAI API',status:'completed',mentioned:true,cited:false}],capturedAt:at};
 before(async()=>{
   mf = new Miniflare({ modules:true,script:'export default {fetch(){return new Response("ok")}}',d1Databases:{DB:'backup-source',RESTORE:'backup-target'} });
@@ -62,6 +66,10 @@ before(async()=>{
   await insert('operation_ticks',{id:'secret_runtime_tick',owner_id:'alice',entry_point:'secret_runtime_entry',status:'completed',started_at:at,finished_at:at});
   await insert('improvement_experiments',{id:ids.experiment,site_id:ids.site,title:'Evidence comparison',hypothesis:'A direct answer improves citations.',intervention:'Publish the direct answer.',metric:'citationRate',target_delta:10,status:'reviewed',baseline_run_id:ids.run,followup_run_id:ids.followupRun,baseline_snapshot:JSON.stringify(experimentSnapshot),followup_snapshot:JSON.stringify({...experimentSnapshot,cells:[{...experimentSnapshot.cells[0],cited:true}]}),notes:'Keep frozen evidence.',created_at:at,updated_at:at});
   await insert('improvement_experiments',{id:ids.otherExperiment,site_id:ids.other,title:'private-other-tenant',hypothesis:'Another private hypothesis.',intervention:'Keep other tenant separate.',metric:'mentionRate',target_delta:5,status:'draft',baseline_run_id:ids.otherRun,baseline_snapshot:JSON.stringify(experimentSnapshot),notes:'private-other-tenant',created_at:at,updated_at:at});
+  const {impactDigest}=await import('../lib/impact-integrity.ts'),brand={name:'Own brand',domain:'alice.example'},studyDigest=await impactDigest({metricVersion:'lumen-impact-v1',plan:impactPlan,brand});
+  await insert('impact_studies',{id:ids.study,site_id:ids.site,plan:JSON.stringify(impactPlan),brand:JSON.stringify(brand),metric_version:'lumen-impact-v1',created_at:at,digest:studyDigest});
+  await insert('impact_searches',{id:ids.search,site_id:ids.site,study_id:ids.study,phase:'before',query_id:ids.treatmentQuery,repetition:1,payload:JSON.stringify(impactObservation),created_at:at,digest:await impactDigest({studyDigest,kind:'add_search',payload:impactObservation})});
+  await insert('impact_outcomes',{id:ids.outcome,site_id:ids.site,study_id:ids.study,arm:'treatment',phase:'before',payload:JSON.stringify(impactOutcome),created_at:at,digest:await impactDigest({studyDigest,kind:'add_outcome',payload:impactOutcome})});
 });
 after(async()=>{await mf?.dispose();});
 test('backup requires authenticated owner and rejects scope overrides',async()=>{assert.equal((await call(ids.site,null)).status,401);assert.equal((await call(ids.site,'bob')).status,404);assert.equal((await call(ids.site,'alice','&ownerId=bob')).status,400);assert.equal((await call(ids.site,'alice','&siteId='+ids.other)).status,400);});
@@ -69,7 +77,7 @@ test('complete owner snapshot explicitly excludes secrets and has verified diges
   const before = await db.prepare('SELECT count(*) AS n FROM quotas').first();
   const result = await call();assert.equal(result.status,200);assert.match(result.headers.get('Content-Disposition'),/^attachment/);assert.equal(result.headers.get('Cache-Control'),'private, no-store');
   const text=await result.text();assert.doesNotMatch(text,/secret_|private-other-tenant|owner_id|tracking_key|lease_token|refresh_cipher|access_cipher|claim_token|verifier_cipher/);
-  exported=await format.validateBackup(JSON.parse(text));assert.equal(exported.version,2);assert.equal(Object.keys(exported.tables).length,15);assert.equal(exported.counts.answers,3);assert.equal(exported.counts.improvement_experiments,1);assert.equal(exported.tables.answers.find(a=>a.id===ids.answer).text,'Private original answer');assert.equal((await db.prepare('SELECT count(*) AS n FROM quotas').first()).n,before.n);
+  exported=await format.validateBackup(JSON.parse(text));assert.equal(exported.version,3);assert.equal(Object.keys(exported.tables).length,18);assert.equal(exported.counts.answers,3);assert.equal(exported.counts.improvement_experiments,1);assert.equal(exported.tables.answers.find(a=>a.id===ids.answer).text,'Private original answer');assert.equal((await db.prepare('SELECT count(*) AS n FROM quotas').first()).n,before.n);
 });
 test('legacy full-brand mentions are projected to metric fields without changing historical values',async()=>{
  const backup=await(await call()).json();const answer=backup.tables.answers.find(a=>a.id===ids.answer);const mentions=JSON.parse(answer.mentions);
@@ -107,7 +115,7 @@ test('V1 keeps its exact historical envelope and manifest while unsupported sche
     value=>{value.schemaMigrations.reverse();},
     value=>{value.schemaMigrations.push({name:'9999_untrusted.sql',sha256:'0'.repeat(64)});},
     value=>{value.tables.improvement_experiments=[];value.counts.improvement_experiments=0;},
-    value=>{value.version=3;},
+    value=>{value.version=4;},
   ]) {const invalid=structuredClone(legacy);change(invalid);await assert.rejects(format.validateBackup(await resign(invalid)),e=>['backup_invalid','backup_schema_unsupported'].includes(e.code));}
   const omitted=structuredClone(exported);delete omitted.tables.improvement_experiments;delete omitted.counts.improvement_experiments;await assert.rejects(format.validateBackup(await resign(omitted)),e=>e.code==='backup_invalid');
   const wrongCurrent=structuredClone(exported);wrongCurrent.schemaMigrations=structuredClone(format.LEGACY_BACKUP_MIGRATIONS);await assert.rejects(format.validateBackup(await resign(wrongCurrent)),e=>['backup_invalid','backup_schema_unsupported'].includes(e.code));
@@ -129,6 +137,26 @@ test('experiment snapshot allowlist, run references and frozen cohort are valida
   for(const change of rejectedChanges){const invalid=structuredClone(exported);change(invalid.tables.improvement_experiments[0]);await assert.rejects(format.validateBackup(await resign(invalid)),e=>e.code==='backup_invalid');}
   for(const status of ['draft','observing']){const reopened=structuredClone(exported);reopened.tables.improvement_experiments[0].status=status;assert.equal((await format.validateBackup(await resign(reopened))).tables.improvement_experiments[0].status,status);}
 });
+test('V2 exact historical envelope remains supported and gains no impact rows',async()=>{
+  const copy=await historicalCopy(exported,2),original=format.canonicalJson(copy);
+  assert.equal(format.canonicalJson(await format.validateBackup(copy)),original);
+  assert.equal(copy.schemaMigrations.length,4);assert.equal(copy.tables.impact_studies,undefined);
+  const invalid=structuredClone(copy);invalid.tables.impact_studies=[];invalid.counts.impact_studies=0;
+  await assert.rejects(format.validateBackup(await resign(invalid)),e=>e.code==='backup_invalid');
+});
+test('impact backup preserves immutable evidence and rejects tampered content, links and duplicate cells',async()=>{
+  assert.equal(exported.counts.impact_studies,1);assert.equal(exported.counts.impact_searches,1);assert.equal(exported.counts.impact_outcomes,1);
+  const changes=[
+    copy=>{copy.tables.impact_searches[0].study_id=crypto.randomUUID();},
+    copy=>{copy.tables.impact_searches[0].query_id=crypto.randomUUID();},
+    copy=>{copy.tables.impact_searches[0].voided_at=at;},
+    copy=>{const row=copy.tables.impact_searches[0];const payload=JSON.parse(row.payload);payload.answerExcerpt='Tampered';row.payload=JSON.stringify(payload);},
+    copy=>{const row=copy.tables.impact_studies[0];const plan=JSON.parse(row.plan);plan.title='Tampered title';row.plan=JSON.stringify(plan);},
+    copy=>{copy.tables.impact_searches.push({...copy.tables.impact_searches[0],id:crypto.randomUUID()});copy.counts.impact_searches++;},
+    copy=>{copy.tables.impact_outcomes[0].arm='control';},
+  ];
+  for(const change of changes){const copy=structuredClone(exported);change(copy);await assert.rejects(format.validateBackup(await resign(copy)),e=>e.code==='backup_invalid');}
+});
 test('restore creates non-executable copy, remaps shared and deleted-question IDs, preserves all data',async()=>{
   const target=await mf.getD1Database('RESTORE');await migrate(target);const originalFetch=globalThis.fetch;globalThis.fetch=()=>{throw Error('No external requests allowed')};
   try {const summary=await restoreToEmptyDatabase(target,exported);assert.equal(summary.foreignKeyViolations,0);assert.equal(summary.integrity,'ok');assert.equal(summary.stoppedAnswers,1);assert.equal(summary.stoppedExecutions,1);assert.equal(summary.externalCalls,0);
@@ -141,6 +169,8 @@ test('restore creates non-executable copy, remaps shared and deleted-question ID
     const experiment=await target.prepare('SELECT * FROM improvement_experiments').first();assert.notEqual(experiment.id,ids.experiment);assert.equal(experiment.site_id,site.id);assert.equal(experiment.status,'reviewed');assert.notEqual(experiment.baseline_run_id,ids.run);assert.notEqual(experiment.followup_run_id,ids.followupRun);assert.notEqual(experiment.baseline_run_id,experiment.followup_run_id);assert.equal(JSON.parse(experiment.baseline_snapshot).cells[0].question,'Private question');assert.equal(JSON.parse(experiment.followup_snapshot).cells[0].cited,true);
     assert.equal((await target.prepare('SELECT count(*) AS n FROM runs WHERE id IN (?,?)').bind(experiment.baseline_run_id,experiment.followup_run_id).first()).n,2);
     assert.equal((await target.prepare('SELECT count(*) AS n FROM operation_ticks').first()).n,0);
+    const impact=await target.prepare('SELECT * FROM impact_studies').first(),search=await target.prepare('SELECT * FROM impact_searches').first();assert.notEqual(impact.id,ids.study);assert.equal(search.study_id,impact.id);assert.equal(search.query_id,ids.treatmentQuery);assert.equal(JSON.parse(search.payload).queryId,ids.treatmentQuery);assert.equal(JSON.parse(search.payload).citations[0].relation,'followup_search');assert.equal(search.digest,exported.tables.impact_searches[0].digest);
+
     await assert.rejects(restoreToEmptyDatabase(target,exported),e=>e.code==='restore_target_not_empty');
   }finally{globalThis.fetch=originalFetch;}
 });
@@ -157,7 +187,8 @@ test('row and byte overflow return errors with no attachment or partial backup',
 test('local CLI creates private persisted D1 and prints only count/digest verification',async()=>{
   const dir=mkdtempSync(path.join(tmpdir(),'lumen-backup-test-')),input=path.join(dir,'backup.json'),output=path.join(dir,'restore');
   try{writeFileSync(input,JSON.stringify(exported),{mode:0o600});const result=await promisify(execFile)(process.execPath,['--experimental-strip-types','scripts/verify-backup.mjs','--input',input,'--output',output],{cwd:root,timeout:60000});const summary=JSON.parse(result.stdout);assert.equal(summary.integrity,'ok');assert.equal(summary.sourceDigest,exported.integrity.digest);assert.doesNotMatch(result.stdout,/Private|secret_|prompt_text|owner_id/);assert.equal(statSync(output).mode&0o777,0o700);assert.equal(statSync(path.join(output,'verification.json')).mode&0o777,0o600);
-    const legacy=await legacyCopy(exported),legacyInput=path.join(dir,'legacy.json'),legacyOutput=path.join(dir,'legacy-restore');writeFileSync(legacyInput,JSON.stringify(legacy),{mode:0o600});const legacyResult=await promisify(execFile)(process.execPath,['--experimental-strip-types','scripts/verify-backup.mjs','--input',legacyInput,'--output',legacyOutput],{cwd:root,timeout:60000});const legacySummary=JSON.parse(legacyResult.stdout);assert.equal(legacySummary.sourceDigest,legacy.integrity.digest);assert.equal(legacySummary.integrity,'ok');assert.equal(legacySummary.counts.improvement_experiments,0);assert.equal(legacySummary.rowCount,summary.rowCount-1);assert.equal(legacySummary.foreignKeyViolations,0);assert.equal(legacySummary.externalCalls,0);assert.doesNotMatch(legacyResult.stdout,/Private|secret_|prompt_text|owner_id/);
+    const legacy=await legacyCopy(exported),legacyInput=path.join(dir,'legacy.json'),legacyOutput=path.join(dir,'legacy-restore');writeFileSync(legacyInput,JSON.stringify(legacy),{mode:0o600});const legacyResult=await promisify(execFile)(process.execPath,['--experimental-strip-types','scripts/verify-backup.mjs','--input',legacyInput,'--output',legacyOutput],{cwd:root,timeout:60000});const legacySummary=JSON.parse(legacyResult.stdout);assert.equal(legacySummary.sourceDigest,legacy.integrity.digest);assert.equal(legacySummary.integrity,'ok');assert.equal(legacySummary.counts.improvement_experiments,0);assert.equal(legacySummary.rowCount,summary.rowCount-4);assert.equal(legacySummary.foreignKeyViolations,0);assert.equal(legacySummary.externalCalls,0);assert.doesNotMatch(legacyResult.stdout,/Private|secret_|prompt_text|owner_id/);
+    const previous=await historicalCopy(exported,2),previousInput=path.join(dir,'v2.json'),previousOutput=path.join(dir,'v2-restore');writeFileSync(previousInput,JSON.stringify(previous),{mode:0o600});const previousResult=await promisify(execFile)(process.execPath,['--experimental-strip-types','scripts/verify-backup.mjs','--input',previousInput,'--output',previousOutput],{cwd:root,timeout:60000});const previousSummary=JSON.parse(previousResult.stdout);assert.equal(previousSummary.integrity,'ok');assert.equal(previousSummary.counts.impact_studies,0);assert.equal(previousSummary.rowCount,summary.rowCount-3);
     await assert.rejects(promisify(execFile)(process.execPath,['--experimental-strip-types','scripts/verify-backup.mjs','--input',input,'--output',output],{cwd:root,timeout:60000}),error=>error.stderr.includes('restore_target_exists'));
     chmodSync(input,0o644);await assert.rejects(promisify(execFile)(process.execPath,['--experimental-strip-types','scripts/verify-backup.mjs','--input',input,'--output',path.join(dir,'unsafe')],{cwd:root,timeout:60000}),error=>error.stderr.includes('backup_permissions'));
   }finally{rmSync(dir,{recursive:true,force:true});}

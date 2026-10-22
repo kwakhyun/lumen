@@ -42,3 +42,5 @@ export * from './operations-schema';
 export * from './eligibility-schema';
 export * from './experiments-schema';
 export * from './observability-schema';
+
+export * from './impact-schema';
