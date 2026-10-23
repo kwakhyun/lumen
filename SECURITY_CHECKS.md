@@ -58,4 +58,20 @@ node scripts/collect-security-evidence.mjs \
 
 이 버전은 설정을 자동으로 배포하거나 고치지 않습니다. 필요한 작업과 근거를 제시하고, 실제 변경 후 같은 방법으로 재확인하는 데 초점을 둡니다.
 
+## Lumen 자체 서비스의 응답 정책
+
+운영 빌드는 `build/sites-worker.ts`와 `lib/http-security.ts`에서 다음 정책을 적용합니다. 다른 브랜드의 사이트 설정을 자동으로 변경하는 기능은 아닙니다.
+
+- HSTS: `max-age=31536000`. Lumen 호스트에만 적용하며 `includeSubDomains`와 `preload`는 지정하지 않습니다.
+- 콘텐츠 형식 보호: `X-Content-Type-Options: nosniff`.
+- 화면 삽입 제한: `X-Frame-Options: SAMEORIGIN`과 CSP `frame-ancestors 'self'`.
+- 출처 정보: `strict-origin-when-cross-origin`. OAuth 콜백의 기존 `no-referrer`는 유지합니다.
+- 강제 CSP: 요청마다 만든 192비트 nonce를 Vinext의 정상 스크립트와 JSON-LD에 전달합니다. 클라이언트가 보낸 CSP와 nonce는 신뢰하지 않습니다. 스크립트의 `unsafe-inline`과 `unsafe-eval`은 허용하지 않습니다.
+
+스타일은 차트와 컴포넌트의 인라인 스타일 때문에 `style-src 'self' 'unsafe-inline'`을 유지합니다. Google 태그 및 광고 없는 GA4에 필요한 연결은 루트 랜딩 페이지에만 허용하고 기존 동의 절차를 유지합니다. 광고 도메인, iframe, 플러그인과 웹 워커는 허용하지 않습니다. 제공자 API와 GA4 OAuth 통신은 서버에서 처리하므로 브라우저 허용 목록에 추가하지 않습니다.
+
+nonce가 포함된 HTML은 `private, no-store`로 응답합니다. 정적 파일은 `public/_headers`에서 보호 헤더를 적용하며 해시가 포함된 `/_next/static/*` 파일의 장기 캐시는 유지합니다. 백업의 더 엄격한 CSP와 API의 MIME, 쿠키, CORS, 리다이렉트는 보존합니다. Sites 플랫폼이 처리하는 로그인 경로는 앱에서 재구현하지 않습니다.
+
+Vite 개발 서버의 HMR에는 운영 CSP를 강제하지 않습니다. 정책을 검증할 때는 `npm run build` 후 `npm start`로 프로덕션 빌드를 확인해야 합니다. 헤더 점검기는 CSP가 존재해도 실효성을 자동 판정하지 않으므로 `확인 불가`를 유지합니다. 실제 브라우저의 호환성 및 차단 검증과 구분해서 읽으세요.
+
 검토 기준: [OWASP HTTP Headers](https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html), [OWASP SSRF Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html), [MDN CSP](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP), [Robots Exclusion Protocol](https://www.rfc-editor.org/rfc/rfc9309).
