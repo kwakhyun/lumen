@@ -70,7 +70,7 @@ node scripts/collect-security-evidence.mjs \
 
 스타일은 차트와 컴포넌트의 인라인 스타일 때문에 `style-src 'self' 'unsafe-inline'`을 유지합니다. Google 태그 및 광고 없는 GA4에 필요한 연결은 루트 랜딩 페이지에만 허용하고 기존 동의 절차를 유지합니다. 광고 도메인, iframe, 플러그인과 웹 워커는 허용하지 않습니다. 제공자 API와 GA4 OAuth 통신은 서버에서 처리하므로 브라우저 허용 목록에 추가하지 않습니다.
 
-nonce가 포함된 HTML은 `private, no-store`로 응답합니다. 정적 파일은 `public/_headers`에서 보호 헤더를 적용하며 해시가 포함된 `/_next/static/*` 파일의 장기 캐시는 유지합니다. 백업의 더 엄격한 CSP와 API의 MIME, 쿠키, CORS, 리다이렉트는 보존합니다. Sites 플랫폼이 처리하는 로그인 경로는 앱에서 재구현하지 않습니다.
+nonce가 포함된 HTML은 `private, no-store`로 응답합니다. 정적 파일용 `public/_headers`에는 보호 헤더와 `/_next/static/*`의 immutable 캐시를 정의했습니다. 로컬 Wrangler에서는 적용되지만, Sites V21의 실제 정적 JS 응답에서는 추가 헤더와 immutable 캐시가 적용되지 않았습니다. 현재 Sites의 공개 설정 계약에서 이 전달 계층을 제어하는 방법은 확인하지 못했습니다. 따라서 아래 검증 범위는 앱 Worker가 반환하는 HTML과 API 응답이며, 플랫폼이 직접 전달하는 정적 파일의 보호를 보장하지 않습니다. 백업의 더 엄격한 CSP와 API의 MIME, 쿠키, CORS, 리다이렉트는 보존합니다. Sites 플랫폼이 처리하는 로그인 경로는 앱에서 재구현하지 않습니다.
 
 Vite 개발 서버의 HMR에는 운영 CSP를 강제하지 않습니다. 정책을 검증할 때는 `npm run build` 후 `npm start`로 프로덕션 빌드를 확인해야 합니다. 헤더 점검기는 CSP가 존재해도 실효성을 자동 판정하지 않으므로 `확인 불가`를 유지합니다. 실제 브라우저의 호환성 및 차단 검증과 구분해서 읽으세요.
 
