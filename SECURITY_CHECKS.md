@@ -70,8 +70,12 @@ node scripts/collect-security-evidence.mjs \
 
 스타일은 차트와 컴포넌트의 인라인 스타일 때문에 `style-src 'self' 'unsafe-inline'`을 유지합니다. Google 태그 및 광고 없는 GA4에 필요한 연결은 루트 랜딩 페이지에만 허용하고 기존 동의 절차를 유지합니다. 광고 도메인, iframe, 플러그인과 웹 워커는 허용하지 않습니다. 제공자 API와 GA4 OAuth 통신은 서버에서 처리하므로 브라우저 허용 목록에 추가하지 않습니다.
 
-nonce가 포함된 HTML은 `private, no-store`로 응답합니다. 정적 파일용 `public/_headers`에는 보호 헤더와 `/_next/static/*`의 immutable 캐시를 정의했습니다. 로컬 Wrangler에서는 적용되지만, Sites V21의 실제 정적 JS 응답에서는 추가 헤더와 immutable 캐시가 적용되지 않았습니다. 현재 Sites의 공개 설정 계약에서 이 전달 계층을 제어하는 방법은 확인하지 못했습니다. 따라서 아래 검증 범위는 앱 Worker가 반환하는 HTML과 API 응답이며, 플랫폼이 직접 전달하는 정적 파일의 보호를 보장하지 않습니다. 백업의 더 엄격한 CSP와 API의 MIME, 쿠키, CORS, 리다이렉트는 보존합니다. Sites 플랫폼이 처리하는 로그인 경로는 앱에서 재구현하지 않습니다.
+nonce가 포함된 HTML은 `private, no-store`로 응답합니다. 정적 파일은 빌드 후 `scripts/embed-static-assets.mjs`가 검토된 공개 파일과 `/_next/static/` 자산만 기존 Worker 모듈에 포함합니다. 같은 주소에서 원본 바이트와 MIME을 보존하며 보안 헤더를 붙입니다. 플랫폼이 먼저 제공할 중복 정적 파일은 산출물에서 제거합니다. 소스 `public/`와 검색 등록 확인 파일은 유지합니다. Sites V21에서 `_headers`가 반영되지 않았던 문제에 대응하는 방식이며, 새로운 저장소나 외부 프록시는 사용하지 않습니다. 백업의 더 엄격한 CSP와 API의 MIME, 쿠키, CORS, 리다이렉트는 보존합니다. Sites 플랫폼이 처리하는 로그인 경로는 앱에서 재구현하지 않습니다.
 
 Vite 개발 서버의 HMR에는 운영 CSP를 강제하지 않습니다. 정책을 검증할 때는 `npm run build` 후 `npm start`로 프로덕션 빌드를 확인해야 합니다. 헤더 점검기는 CSP가 존재해도 실효성을 자동 판정하지 않으므로 `확인 불가`를 유지합니다. 실제 브라우저의 호환성 및 차단 검증과 구분해서 읽으세요.
+
+정적 응답은 GET/HEAD만 허용하며, 콘텐츠 해시 ETag에 맞는 조건부 요청은 본문 없는 304로 응답합니다. 해시가 포함된 프레임워크 자산은 1년 immutable, robots와 sitemap 등 일반 공개 파일은 매번 재검증합니다. 작은 자산의 Range 요청에는 전체 200 응답과 `Accept-Ranges: none`을 반환합니다. 정적 파일의 CSP는 nonce 없이 `default-src 'none'`을 기본값으로 사용합니다. 문서 페이지의 nonce 정책은 그대로입니다.
+
+빌드는 자산 128개, 개별 2 MiB, 전체 4 MiB를 상한으로 둡니다. 미승인 파일, 심볼릭 링크, 소스맵이나 잘못된 인코딩이 발견되면 실패합니다. 내부 manifest, 설정과 환경 파일은 공개 자산에 넣지 않습니다. 새 공개 파일을 추가하려면 빌드 스크립트의 허용 목록과 테스트를 함께 갱신하세요. 정적 요청이 기존 Worker로 전달되므로 Worker 요청량은 늘 수 있으며, 정적 파일만 무제한으로 제공된다고 가정하지 않습니다. 별도 유료 서비스나 자동 유료 전환은 추가하지 않습니다.
 
 검토 기준: [OWASP HTTP Headers](https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html), [OWASP SSRF Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html), [MDN CSP](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP), [Robots Exclusion Protocol](https://www.rfc-editor.org/rfc/rfc9309).
