@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element -- This static, pre-sized product screenshot is optimized before deployment. */
 /* eslint-disable @next/next/no-html-link-for-pages -- Full document navigation avoids the deployed Vinext RSC transition failure. */
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { ArrowUpRight, ArrowRight, Check, SunMedium, Quote, ChartNoAxesCombined, CalendarClock, ShieldCheck, Fingerprint, ChevronDown } from 'lucide-react';
 import './landing.css';
 import { AnalyticsConsent } from '@/components/analytics-consent';
@@ -33,8 +34,10 @@ const faq = [
   ['GA4를 연결하면 매출 효과까지 알 수 있나요?', 'GA4 기준 자료는 선택한 속성에서 브랜드 사이트의 세션, AI 추천 세션과 페이지 조회를 읽어 옵니다. 같은 조회 조건의 최근 자료는 최대 24시간 재사용합니다. 전환 세션, 주문과 매출은 이 기능에서 측정하지 않으며, 사이트 전체 방문 자료를 콘텐츠 전후 성과 비교에 자동으로 넣지 않습니다.'],
   ['검색 노출이나 매출 상승을 보장하나요?', '보장하지 않습니다. 같은 질문과 조건에서 전후 모두 확인한 답변을 비교하고, 개선 대상과 비교 대상의 변화도 대조합니다. 이는 관측된 변화이며 전체 이용자의 노출 빈도나 콘텐츠 개선의 인과효과를 증명하지 않습니다. 방문, 전환과 매출은 각각 같은 범위의 자료로 확인해야 합니다.'],
 ];
-export default function Home() { return <main className="lp">
-  <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productIdentity).replace(/</g, '\\u003c') }} />
+export default async function Home() {
+  const nonce = (await headers()).get('x-lumen-csp-nonce') || undefined;
+  return <main className="lp">
+  <script nonce={nonce} type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productIdentity).replace(/</g, '\\u003c') }} />
   <a className="lp-skip" href="#main">본문으로 이동</a>
   <header className="lp-header"><a href="/" className="lp-logo" aria-label="Lumen 홈"><SunMedium size={25} strokeWidth={2.1}/><span>lumen</span></a><nav aria-label="주 메뉴"><a href="#product">제품</a><a href="#search-tracking">검색 관측</a><a href="/guides/free-ai-brand-tracking">활용 가이드</a><a href="#free">무료 사용</a><a href="#faq">자주 묻는 질문</a></nav><a className="lp-header-cta" href="/dashboard">워크스페이스 열기<ArrowUpRight size={16}/></a></header>
   <section className="lp-hero" id="main"><div className="lp-eyebrow"><span className="lp-live-dot"/> AI 답변 속 우리 브랜드</div><h1>AI는 우리 브랜드를{' '}<br/>어떻게 <em>소개하고 있을까요?</em></h1><p className="lp-hero-copy">Gemini API 답변을 수집하고, 직접 확인한 ChatGPT와 Perplexity 검색 결과를 기록하세요.{' '}<br/>브랜드 언급과 인용 근거를 보관하고 콘텐츠 변경 전후를 비교할 수 있습니다.</p><ol className="lp-first-steps" aria-label="첫 답변을 확인하는 순서"><li><span>1</span>브랜드 등록</li><li><span>2</span>질문 추가</li><li><span>3</span>답변 수집</li></ol><p className="lp-collection-note">자동 수집은 웹 검색이 없는 Gemini API 답변을 사용합니다.{' '}<br/>실제 AI 검색 관측은 별도로 기록하며, GA4는 필요할 때 연결할 수 있습니다.</p><div className="lp-hero-actions"><a className="lp-btn primary" href="/dashboard?start=1">내 브랜드 등록하기<ArrowRight size={18}/></a><a className="lp-btn secondary" href="/dashboard?demo=1">샘플 둘러보기<ArrowUpRight size={17}/></a></div><a className="lp-hero-guide" href="/guides/free-ai-brand-tracking">실제 AI 검색을 추적하는 방법<ArrowRight size={16}/></a><p className="lp-hero-note">ChatGPT 로그인 후 이용할 수 있으며, 샘플 보기에도 로그인이 필요합니다.{' '}<br/>대한민국에서 이용하는 만 18세 이상 업무 사용자 대상 / 카드 등록 없음</p>
