@@ -22,7 +22,7 @@ export default function RunSetup({ state, busy, error, defaultModel, preferredPr
   const canRun = !busy && units > 0 && !usageUnavailable && (demo || units <= available);
   const workspaceQuery = `?site=${encodeURIComponent(state.site.id)}`;
 
-  return <Modal title={demo ? "샘플 답변 수집" : "답변 수집 설정"} subtitle={demo ? "생성된 샘플 데이터로 수집 과정을 체험할 수 있습니다. 실제 AI 사용량은 차감하지 않습니다." : "먼저 질문 하나로 시작해 보세요. Gemini API의 일반 응답을 수집하며 웹 검색이나 실시간 검증은 지원하지 않습니다."} onClose={onClose} dismissDisabled={busy} wide>
+  return <Modal title={demo ? "샘플 답변 수집" : "답변 수집 설정"} subtitle={demo ? "생성된 샘플 데이터로 수집 과정을 체험할 수 있습니다. 실제 AI 사용량은 차감하지 않습니다." : "먼저 질문 하나와 모델 하나로 시작해 보세요. 모델별 웹 검색 지원 여부는 아래에서 확인할 수 있습니다."} onClose={onClose} dismissDisabled={busy} wide>
     <div className="d-form">
       <div className="d-form-row">
         <fieldset className="d-fieldset" disabled={busy}>

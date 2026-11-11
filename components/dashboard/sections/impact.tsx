@@ -49,7 +49,7 @@ export default function Impact({ state }: { state: SiteState }) {
     finally { setBusy(false); mutationLock.current = false; }
   }
   return <div className="d-stack d-impact">
-    <div className="d-rich-note"><Info size={18} /><span>무료 Gemini API 답변과 별도로, 실제 AI 검색 화면에서 확인한 결과를 기록합니다. 입력한 자료는 사용자의 관측 기록이며 Lumen이 독립적으로 검증한 결과가 아니에요. 저장만으로 AI 요청이나 자동 수집이 실행되지 않습니다.</span></div>
+    <div className="d-rich-note"><Info size={18} /><span>API 수집 답변과 별도로, 실제 AI 검색 화면에서 확인한 결과를 기록합니다. 입력한 자료는 사용자의 관측 기록이며 Lumen이 독립적으로 검증한 결과가 아니에요. 저장만으로 AI 요청이나 자동 수집이 실행되지 않습니다.</span></div>
     {state.site.mode === 'demo' && <Help>실제 검색과 매출 기록은 실제 브랜드 워크스페이스에서 만들 수 있어요. 샘플 답변은 검증 자료로 사용할 수 없습니다.</Help>}
     {notice && <p className="d-impact-notice" role="status">{notice}</p>}
     {selected ? <ImpactStudyDetail key={selected} siteId={state.site.id} studyId={selected} onBack={() => { setSelected(''); setNotice(''); }} /> : <Panel title="콘텐츠 개선 검증" subtitle="질문과 비교 조건을 먼저 정하고, 같은 기간의 검색 결과와 사업 성과를 대조하세요." action={<Button variant="primary" disabled={state.site.mode === 'demo'} onClick={() => open('plan')}><Plus size={16} />검증 계획 만들기</Button>}>

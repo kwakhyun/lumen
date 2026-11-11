@@ -10,7 +10,7 @@ Privacy: preserve stateless API requests, bounded response reads and existing lo
 
 1. Diagnose existing failures and confirm model/key access: complete. Reproduced Gemini's 45-second deadline; old generic HTTP errors did not retain enough information to attribute a provider cause.
 2. Implement model change, distinguish observation/generation, classify safe errors and repair Gemini configuration: complete. Preserve quota accounting, evidence scope, provider choice and historical measurements.
-3. Local regression checks: complete. Production publication: next stage at source preparation. Final deployment and live-generation evidence are recorded in the existing project decision page and task response.
+3. Local regression checks and production functional verification: complete for GPT reports and analysis. Version 25 published with environment revision 7. Final copy corrections are the next publication stage. Gemini remains an external diagnostic limitation as recorded below.
 
 ## Workload routes
 
@@ -66,7 +66,11 @@ Removed candidateCount, which current Gemini 3/4 troubleshooting documentation m
 - Final full run with test-concurrency=2: 377 passed, 0 failed/cancelled. This includes the added paid-generation scope test. The prior unbounded run had two local D1 transport failures in unrelated backup/impact suites; both pass in the bounded run.
 - TypeScript and production build passed. Lint: no errors; five pre-existing warnings. Built output contains no new API key bytes.
 - Direct new-key request: HTTP 200, completed, exact gpt-6.1-terra, reasoning token count 0.
-- Production report, AI analysis, Gemini diagnostic and responsive validation remain publication-stage checks; do not infer success from mocked tests.
+- Production v25: real GPT report generated and persisted for 7-day Gemini scope (1 completed answer); reload retained the document. Real GPT assistant generation used 30-day Gemini scope (6 completed answers); changing period/model preserved the original message scope. Both identified GPT-6.1 Terra separately.
+- Production responsive checks: CSS widths 320 and 390 and native Chrome 200% (CSS 735, DPR 4) showed no document overflow; report editor also had equal client/scroll widths. Original 90% zoom and temporary viewport were restored.
+- Gemini production retest with a short two-sentence question failed before response headers at exactly 90,000ms. Safe log event provider_timeout, request ID 864548ce5d3fbbc409ae771a2133f287, 2026-11-11T12:42:49.814Z. No upstream HTTP authentication/quota response was received; key replacement need and underlying provider cause are not established. Requested the Google project identity for further quota/access diagnosis.
+- Production v25 GPT web-search collection completed 1/1 for the existing GEO-tool question. Saved GPT-6.1 Terra original text and six provider citation annotations; the model filter shows one completed answer.
+- Live testing found stale Gemini-only availability copy. Corrected collection dialog, model notes, public FAQ, method guide and metadata to describe each connected provider without claiming API results equal consumer app results.
 
 ## Sources
 
