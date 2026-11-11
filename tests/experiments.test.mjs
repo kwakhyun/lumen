@@ -7,9 +7,10 @@ import path from 'node:path';
 import { Miniflare } from 'miniflare';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 registerHooks({ resolve(specifier, context, next) {
-  if (specifier === 'cloudflare:workers') return { url: 'data:text/javascript,export const env=globalThis.__experimentEnv;', shortCircuit: true };
+  if (specifier === '@/lib/runtime-env') return { url: 'data:text/javascript,export const env=globalThis.__experimentEnv;', shortCircuit: true };
   if (specifier === 'next/headers') return { url: 'data:text/javascript,export async function headers(){return globalThis.__experimentHeaders;}', shortCircuit: true };
   if (specifier === 'next/navigation') return { url: 'data:text/javascript,export function redirect(){throw new Error("redirect");}', shortCircuit: true };
+  if (specifier === '@/app/chatgpt-auth') return {url:pathToFileURL(path.join(root,'tests/fixtures/legacy-auth.ts')).href,shortCircuit:true};
   if (specifier.startsWith('@/')) { const base = path.join(root, specifier.slice(2)); for (const suffix of ['.ts','/index.ts']) if (existsSync(base + suffix)) return { url: pathToFileURL(base + suffix).href, shortCircuit: true }; }
   if (specifier.startsWith('.') && context.parentURL?.startsWith('file:')) { const base = fileURLToPath(new URL(specifier, context.parentURL)); if (existsSync(base + '.ts')) return { url: pathToFileURL(base + '.ts').href, shortCircuit: true }; }
   return next(specifier, context);

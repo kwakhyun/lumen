@@ -1,4 +1,4 @@
-import { env } from 'cloudflare:workers';
+import { env } from '@/lib/runtime-env';
 import { ProductError } from './product-validation';
 
 // A missing or misspelled setting must never enable a billable adapter.

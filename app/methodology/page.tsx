@@ -3,7 +3,7 @@ import '../landing.css';
 export const metadata = {
   title: '측정 방법',
   description: 'Lumen의 브랜드 언급률, 검색 인용률, 콘텐츠 개선 전후 비교와 GA4 방문·매출 지표의 계산 방법과 해석 범위를 확인하세요.',
-  alternates: { canonical: 'https://lumen-ai-visibility.khyun97.chatgpt.site/methodology' },
+  alternates: { canonical: 'https://lumen-nine-rose.vercel.app/methodology' },
 };
 export default function Methodology() {
   return <main className="lp-prose"><a href="/">← Lumen</a><h1>지표를 읽는 방법</h1>

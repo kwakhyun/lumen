@@ -7,9 +7,10 @@ import path from 'node:path';
 import { Miniflare } from 'miniflare';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 registerHooks({ resolve(specifier, context, next) {
-  if (specifier === 'cloudflare:workers') return { url: 'data:text/javascript,export const env=globalThis.__impactEnv;', shortCircuit: true };
+  if (specifier === '@/lib/runtime-env') return { url: 'data:text/javascript,export const env=globalThis.__impactEnv;', shortCircuit: true };
   if (specifier === 'next/headers') return { url: 'data:text/javascript,export async function headers(){return globalThis.__impactHeaders;}', shortCircuit: true };
   if (specifier === 'next/navigation') return { url: 'data:text/javascript,export function redirect(){throw new Error("redirect");}', shortCircuit: true };
+  if (specifier === '@/app/chatgpt-auth') return {url:pathToFileURL(path.join(root,'tests/fixtures/legacy-auth.ts')).href,shortCircuit:true};
   if (specifier.startsWith('@/')) { const base = path.join(root, specifier.slice(2)); for (const suffix of ['.ts','/index.ts']) if (existsSync(base + suffix)) return { url: pathToFileURL(base + suffix).href, shortCircuit: true }; }
   if (specifier.startsWith('.') && context.parentURL?.startsWith('file:')) { const base = fileURLToPath(new URL(specifier, context.parentURL)); if (existsSync(base + '.ts')) return { url: pathToFileURL(base + '.ts').href, shortCircuit: true }; }
   return next(specifier, context);
@@ -181,7 +182,8 @@ test('atomic byte budget rejects concurrent oversized inserts before count cap a
   const counts=await db.prepare('SELECT count(*) n FROM impact_searches WHERE site_id=?').bind(w.id).first();assert.equal(counts.n,seed.length+1);assert.ok(counts.n<5000);
   const current=await db.prepare('SELECT id FROM impact_searches WHERE site_id=? AND voided_at IS NULL').bind(w.id).first();
   // Worst-case escaped exclusion metadata fits the pre-reserved budget.
-  await service.voidImpact(w.owner,{action:'void_search',siteId:w.id,studyId:study.id,id:current.id,reason:'x'+String.fromCharCode(0).repeat(998)+'x'});
+  // U+0001 has the same six-byte JSON expansion; NUL is rejected at the API/DB boundary.
+  await service.voidImpact(w.owner,{action:'void_search',siteId:w.id,studyId:study.id,id:current.id,reason:'x'+String.fromCharCode(1).repeat(998)+'x'});
   const stat=await db.prepare(`SELECT sum(length(CAST(json_array(${columns.join(',')}) AS BLOB))+${overhead}) bytes FROM impact_searches WHERE site_id=?`).bind(w.id).first();assert.ok(stat.bytes<=limit);
 });
 test('unsupported minor-unit currencies and non-finite offset timestamps are rejected',()=>{

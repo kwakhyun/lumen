@@ -68,7 +68,7 @@ Lumen은 브랜드의 AI 답변과 검색 관측을 모아 관리하는 무료 �
 
 ## 기술 구성
 
-React 19, TypeScript와 Vinext App Router로 구성한 웹 애플리케이션입니다. Cloudflare Workers에서 실행하고, D1과 Drizzle로 데이터를 관리합니다. 현재 배포는 Sites의 ChatGPT 인증을 사용합니다.
+React 19, TypeScript와 Next.js App Router를 사용합니다. Vercel Node.js 22에서 실행하며 Turso HTTP와 Drizzle로 데이터를 관리합니다. Google 로그인은 Auth.js의 서명된 세션으로 검증합니다. 기존 Sites 주소는 이전 검증이 끝날 때까지 유지합니다.
 
 | 경로 | 역할 |
 | --- | --- |
@@ -89,7 +89,7 @@ npm test
 npm run build
 ```
 
-테스트는 가상 제공자 응답과 로컬 D1을 사용하며 실제 AI API를 호출하지 않습니다. 로컬 D1 테스트에는 localhost 소켓 실행 권한이 필요합니다. 서비스 실행에는 별도의 D1 바인딩, 인증 환경과 서버 측 연결 설정이 필요하며, 저장소를 복제하는 것만으로 운영 서비스의 데이터나 연결을 사용할 수는 없습니다.
+테스트는 가상 제공자 응답과 격리된 로컬 Turso HTTP 서버를 사용하며 실제 AI API를 호출하지 않습니다. 공식 Turso CLI와 localhost 소켓 실행 권한이 필요합니다. 로그인과 외부 연결은 `.env.example`을 참고해 별도로 구성해야 합니다.
 
 API 키, OAuth 자격 증명, `.env` 파일과 사용자 백업은 저장소에 추가하지 마세요. 서버 연결과 배포 설정을 바꾸기 전에는 무료 호출 정책과 접근 제어를 확인하세요.
 
@@ -101,7 +101,7 @@ Lumen의 기능과 이용 조건은 [서비스 소개](https://lumen-ai-visibili
 
 ## AI 제공자 설정
 
-로컬 개발 키는 Git에서 제외되는 `.dev.vars`에 `OPENAI_API_KEY`, `GEMINI_API_KEY`로 설정합니다. 운영은 Sites의 동일한 런타임 비밀 변수에 별도로 등록하고 배포해야 합니다. 파일을 업로드하거나 키를 소스에 넣지 마세요.
+로컬 개발 키는 Git에서 제외되는 `.env.local`의 `OPENAI_API_KEY`, `GEMINI_API_KEY`에 설정합니다. 운영은 Vercel Production 환경 변수에 같은 이름으로 등록하고 재배포합니다. `.env.example`에는 변수명과 용도만 제공합니다. 키를 소스나 업로드 파일에 넣지 마세요.
 
 - 기본 설정은 `LUMEN_PROVIDER_MODE=free_only`이며 Gemini만 호출합니다.
 - 운영자가 `LUMEN_PROVIDER_MODE=paid_enabled`를 명시하면 연결된 OpenAI를 활성화합니다. 문서, 질문 제안, AI 분석 기본 생성 모델은 `gpt-6.1-terra`입니다. 유료 제공자 비용은 운영자의 API 프로젝트에 청구됩니다.

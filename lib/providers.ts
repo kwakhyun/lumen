@@ -1,4 +1,4 @@
-import { env } from 'cloudflare:workers';
+import { env } from '@/lib/runtime-env';
 import type { Citation, ProviderStatus } from './product-types';
 import { LIVE_MODEL } from './product-types';
 import { ProductError } from './product-validation';

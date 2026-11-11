@@ -7,9 +7,10 @@ import path from 'node:path';
 import { Miniflare } from 'miniflare';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 registerHooks({resolve(specifier,context,next){
-  if(specifier==='cloudflare:workers')return {url:'data:text/javascript,export const env=globalThis.__lumenTestEnv;',shortCircuit:true};
+  if(specifier==='@/lib/runtime-env')return {url:'data:text/javascript,export const env=globalThis.__lumenTestEnv;',shortCircuit:true};
   if(specifier==='next/headers')return {url:'data:text/javascript,export async function headers(){return globalThis.__lumenTestHeaders;}',shortCircuit:true};
   if(specifier==='next/navigation')return {url:'data:text/javascript,export function redirect(){throw new Error("redirect");}',shortCircuit:true};
+  if (specifier === '@/app/chatgpt-auth') return {url:pathToFileURL(path.join(root,'tests/fixtures/legacy-auth.ts')).href,shortCircuit:true};
   if(specifier.startsWith('@/')){const base=path.join(root,specifier.slice(2));for(const suffix of ['.ts','/index.ts'])if(existsSync(base+suffix))return {url:pathToFileURL(base+suffix).href,shortCircuit:true};}
   if(specifier.startsWith('.')&&context.parentURL?.startsWith('file:')){const base=fileURLToPath(new URL(specifier,context.parentURL));if(existsSync(base+'.ts'))return {url:pathToFileURL(base+'.ts').href,shortCircuit:true};}
   return next(specifier,context);
@@ -191,4 +192,13 @@ test('deadline crossed during a chunk blocks the next dispatch but preserves the
  try{const f=await expiryFixture({answers:2,endsAt:start+2000,linkByRun:true});globalThis.fetch=async(url)=>{assert.match(url,/^https:\/\/generativelanguage.googleapis.com\//);calls++;Date.now=()=>start+3000;return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:'In-flight answer retained after the deadline.'}]}}]});};
   const result=await call('POST',`sites/${f.site}/runs/${f.run}/process`,{},f.owner);assert.equal(result.response.status,200);assert.equal(calls,1);assert.equal(result.data.run.status,'partial');assert.equal(result.data.run.completed,1);assert.equal(result.data.run.failed,1);assert.equal(result.data.answers.find(a=>a.status==='completed').text,'In-flight answer retained after the deadline.');assert.match(result.data.answers.find(a=>a.status==='failed').error,/종료 시각/);assert.equal((await e.DB.prepare('SELECT units FROM ai_usage_reservations WHERE owner_id=?').bind(f.owner).first()).units,2);
  }finally{Date.now=realNow;e.LUMEN_PROVIDER_MODE='paid_enabled';delete e.GEMINI_API_KEY;globalThis.fetch=previous;}
+});
+
+
+test('NUL text is rejected before database writes and literal escape text stays valid',async()=>{
+ const rejected=await call('POST','sites',{name:'Before\0After',domain:'nul-test.example'});
+ assert.equal(rejected.response.status,400);assert.equal(rejected.data.code,'invalid_input');
+ const row=await globalThis.__lumenTestEnv.DB.prepare('SELECT count(*) AS n FROM sites WHERE domain=?').bind('nul-test.example').first();assert.equal(row.n,0);
+ const literal=await readJson(new Request(origin,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Literal \\u0000',domain:'literal-test.example'})}),siteInput);
+ assert.equal(literal.name,'Literal \\u0000');
 });

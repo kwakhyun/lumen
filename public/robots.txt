@@ -13,4 +13,4 @@ Disallow: /dashboard
 Disallow: /api/
 Disallow: /mcp
 
-Sitemap: https://lumen-ai-visibility.khyun97.chatgpt.site/sitemap.xml
+Sitemap: https://lumen-nine-rose.vercel.app/sitemap.xml

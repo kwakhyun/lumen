@@ -4,7 +4,7 @@ import { mkdir, writeFile, chmod } from 'node:fs/promises';
 import { resolve, dirname, relative, isAbsolute } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const DEFAULT_ORIGIN = 'https://lumen-ai-visibility.khyun97.chatgpt.site';
+export const DEFAULT_ORIGIN = 'https://lumen-nine-rose.vercel.app';
 export const GUIDE_PATH = '/guides/free-ai-brand-tracking';
 const MISSING_PATH = '/__lumen_crawl_audit_missing__';
 const TIMEOUT_MS = 15_000;
@@ -231,7 +231,7 @@ async function main() {
   let origin = DEFAULT_ORIGIN, output;
   for (let index = 2; index < process.argv.length; index++) {
     const arg = process.argv[index];
-    if (arg === '--help') { process.stdout.write('Usage: node scripts/audit-public-indexing.mjs [--origin https://lumen-ai-visibility.khyun97.chatgpt.site] [--output work/crawl-audit/report.json]\nRead-only: 15 anonymous GET requests, concurrency 3, 15-second timeout.\n'); return; }
+    if (arg === '--help') { process.stdout.write('Usage: node scripts/audit-public-indexing.mjs [--origin https://lumen-nine-rose.vercel.app] [--output work/crawl-audit/report.json]\nRead-only: 15 anonymous GET requests, concurrency 3, 15-second timeout.\n'); return; }
     if (arg !== '--origin' && arg !== '--output') throw new Error('지원하지 않는 옵션입니다. --help를 확인하세요.');
     const value = process.argv[++index]; if (!value || value.startsWith('--')) throw new Error('옵션 값이 필요합니다.');
     if (arg === '--origin') origin = value.replace(/\/$/, ''); else output = value;

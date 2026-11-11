@@ -66,3 +66,6 @@ next-env.d.ts
 *.db
 *.db-shm
 *.db-wal
+
+# Public environment template contains variable names only.
+!.env.example

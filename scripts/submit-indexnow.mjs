@@ -5,7 +5,7 @@ import { constants } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const SITE_ORIGIN = 'https://lumen-ai-visibility.khyun97.chatgpt.site';
+export const SITE_ORIGIN = 'https://lumen-nine-rose.vercel.app';
 export const KEY_LOCATION = `${SITE_ORIGIN}/lumen-indexnow-key.txt`;
 export const INDEXNOW_ENDPOINT = 'https://www.bing.com/indexnow';
 export const SUBMISSION_URLS = Object.freeze([

@@ -4,7 +4,7 @@ import { ArrowRight, ArrowUpRight, ChevronDown, SunMedium } from 'lucide-react';
 import { AnalyticsConsent } from '@/components/analytics-consent';
 import '../../landing.css';
 
-const url = 'https://lumen-ai-visibility.khyun97.chatgpt.site/guides/free-ai-brand-tracking';
+const url = 'https://lumen-nine-rose.vercel.app/guides/free-ai-brand-tracking';
 export const metadata: Metadata = {
   title: 'ChatGPT와 Perplexity 브랜드 언급을 무료로 추적하는 방법',
   description: '소규모 한국어 SaaS 팀을 위한 Lumen 활용 가이드. 실제 AI 검색의 언급과 원래 인용을 기록하고, 모델별 API 답변 및 GA4 집계와 구분해 콘텐츠 변경 전후를 비교하세요.',
@@ -40,7 +40,7 @@ export default function FreeAiBrandTrackingGuide() {
       <section id="guide-ga4" className="lp-guide-section"><h2>4. GA4와 매출을 구분하는 법</h2><p>GA4 연결은 선택 사항입니다. 속성을 연결한 뒤 검증 계획의 ‘GA4 기준 자료 가져오기’를 누르면 브랜드 사이트의 세션, AI 추천 세션과 페이지 조회를 읽어 옵니다. 동일한 속성, 사이트와 조회 조건의 최근 자료는 최대 24시간 재사용해 중복 조회를 줄입니다.</p><p>저장된 카드에는 실제 보고서 기간과 속성의 시간대, 가져온 시각과 데이터 품질 표시가 남습니다. GA4의 시간대가 UTC가 아니라면 같은 날짜여도 계획과 포함 시간이 다릅니다. 최근 약 48시간의 집계는 잠정값으로 확인해야 합니다.</p><div className="lp-guide-note"><h3>GA4 기준 자료는 방문까지만 확인합니다</h3><p>이 기능에서 확인하지 않은 전환 세션, 주문과 매출은 ‘미측정’입니다. 사이트 전체 방문을 개선 페이지와 비교 페이지의 성과로 나누지 않으며, 전후 성과 비교에도 자동으로 넣지 않습니다. AI 추천 출처가 전달되지 않은 방문이나 나중에 직접 방문한 구매는 GA4의 AI 유입 집계에서 빠질 수 있습니다.</p></div><p>별도의 방문·구매 비교에는 같은 출처와 원본 ID, UTC 기간, 통화, 채널 필터와 전환 정의를 적용한 집계가 필요합니다. 전환율은 주문 수가 아니라 ‘전환이 발생한 세션 수 ÷ 전체 세션 수’입니다. 매출 집계가 없다면 검색 관측과 방문의 변화까지만 확인하고, 매출 효과는 미측정으로 남기세요.</p></section>
       <section id="guide-free" className="lp-guide-section"><h2>5. 무료 한도와 이용 조건</h2><div className="lp-guide-limits"><div><span>개인 AI 호출 기본 한도</span><strong>하루 10회 / 월 100회</strong></div><div><span>서비스 공용 AI 호출 기본 한도</span><strong>하루 50회 / 월 500회</strong></div></div><p>질문 하나를 모델 하나에 보내면 1회를 사용합니다. 콘텐츠 초안, 리포트와 AI 상담도 같은 한도를 쓰며, 공용 한도에 도달하면 개인 잔여량이 있어도 수집이 제한됩니다. 한도는 UTC 기준으로 초기화되고 운영 설정에 따라 낮아질 수 있으므로 실제 사용량 화면을 확인하세요. 실패했거나 제공자에 전달됐을 가능성이 있는 요청은 자동 환급되지 않습니다.</p><p>무료 Gemini API의 입력과 응답은 Google의 제품 개선 및 인적 검토에 사용될 수 있습니다. 공개된 업무 정보만 사용하고 개인정보, 민감정보와 기밀정보는 입력하지 마세요. Lumen은 실패한 수집을 다른 모델로 자동 전환하지 않습니다.</p><p>검색 관측 저장과 GA4 기준 자료 조회는 AI 호출 한도를 쓰지 않습니다. 외부 검색 서비스의 이용 조건과 한도는 해당 서비스에 따르며, Lumen의 무료 범위가 외부 유료 기능을 포함하지는 않습니다.</p></section>
       <section id="guide-faq" className="lp-guide-section lp-guide-faq"><h2>6. 자주 묻는 질문</h2>{questions.map(([question,answer]) => <details key={question}><summary>{question}<ChevronDown size={18}/></summary><p>{answer}</p></details>)}</section>
-      <section className="lp-guide-start"><h2>첫 질문의 기준값부터 남겨보세요</h2><p>브랜드를 등록하고 실제 검색에서 확인한 답변을 저장하세요. GA4는 방문 자료가 필요할 때 연결하면 됩니다.</p><a className="lp-btn primary" href="/dashboard?start=1">내 브랜드 등록하기<ArrowRight size={17}/></a><small>ChatGPT 로그인 후 이용할 수 있습니다. 카드 등록은 필요하지 않습니다.</small></section>
+      <section className="lp-guide-start"><h2>첫 질문의 기준값부터 남겨보세요</h2><p>브랜드를 등록하고 실제 검색에서 확인한 답변을 저장하세요. GA4는 방문 자료가 필요할 때 연결하면 됩니다.</p><a className="lp-btn primary" href="/dashboard?start=1">내 브랜드 등록하기<ArrowRight size={17}/></a><small>Google 로그인 후 이용할 수 있습니다. 카드 등록은 필요하지 않습니다.</small></section>
     </article>
     <footer className="lp-footer"><a href="/" className="lp-logo"><SunMedium size={23}/><span>lumen</span></a><p>AI 답변과 실제 검색 관측을 함께 기록하세요</p><div><a href="/methodology">측정 방법</a><a href="/privacy">개인정보 처리 안내</a><a href="/terms">이용 안내</a><a href="mailto:khyun9685@gmail.com">문의</a><AnalyticsConsent/><span>© {new Date().getFullYear()} Lumen</span></div><small className="lp-operator">운영자 곽현 / 지원 <a href="mailto:khyun9685@gmail.com">khyun9685@gmail.com</a></small></footer>
   </main>;

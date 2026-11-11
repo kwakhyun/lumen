@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 // Contract fixtures only. This file never loads env files, opens sockets, or calls provider APIs.
 globalThis.__providerFixtureEnv = {LUMEN_PROVIDER_MODE:'paid_enabled'};
 registerHooks({ resolve(specifier, context, next) {
-  if (specifier === 'cloudflare:workers') return { url: 'data:text/javascript,export const env=globalThis.__providerFixtureEnv;', shortCircuit: true };
+  if (specifier === '@/lib/runtime-env') return { url: 'data:text/javascript,export const env=globalThis.__providerFixtureEnv;', shortCircuit: true };
   if (specifier.startsWith('.') && context.parentURL?.startsWith('file:')) {
     const base = fileURLToPath(new URL(specifier, context.parentURL));
     if (existsSync(base + '.ts')) return { url: pathToFileURL(base + '.ts').href, shortCircuit: true };

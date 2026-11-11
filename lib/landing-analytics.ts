@@ -1,6 +1,6 @@
 /** Public landing-only analytics. This module never reads account or workspace state. */
 export const ANALYTICS_ID = 'G-3Q9BXQLQ4H';
-export const ANALYTICS_HOST = 'lumen-ai-visibility.khyun97.chatgpt.site';
+export const ANALYTICS_HOST = 'lumen-nine-rose.vercel.app';
 export const CONSENT_KEY = 'lumen.analytics-consent.v1';
 export const CONSENT_MAX_AGE_MS = 180 * 86400000;
 export type AnalyticsConsent = 'granted' | 'denied';

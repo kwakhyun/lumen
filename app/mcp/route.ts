@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { env } from 'cloudflare:workers';
+import { env } from '@/lib/runtime-env';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { sites } from '@/db/schema';
@@ -32,7 +32,7 @@ export async function POST(request:Request) {
   let executingTool=false;
   let globalCollection=false;
   try {
-    // The Site gateway supplies verified headers. Reject browser cross-origin submissions too.
+    // Auth.js verifies the session. Reject browser cross-origin submissions too.
     const origin=request.headers.get('origin');
     if(origin && origin!==new URL(request.url).origin) return rpcError(null,-32001,'Origin is not allowed.',403);
     const user=await requireUser();
@@ -67,7 +67,7 @@ export async function POST(request:Request) {
     } else if(call.data.name==='lumen_collect_due') {
       const {limit}=z.object({limit:z.number().int().min(1).max(2).default(1)}).strict().parse(args);
       executingTool=true;
-      // Only Sites' trusted currentUser identity and server configuration grant this
+      // Only the verified session owner and server configuration grant this
       // capability. Arguments, email, request headers and whitespace never widen it.
       globalCollection=typeof env.LUMEN_OPERATOR_USER_ID==='string'&&env.LUMEN_OPERATOR_USER_ID.length>0&&env.LUMEN_OPERATOR_USER_ID===user.userId;
       const tick=await tickDueSchedules(globalCollection?{limit,entryPoint:'mcp_operator'}:{ownerId:user.userId,limit,entryPoint:'mcp_owner'});

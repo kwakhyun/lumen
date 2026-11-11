@@ -46,7 +46,11 @@ async function requireRunScheduleActive(site:typeof t.sites.$inferSelect,runId:s
     .innerJoin(t.collectionSchedules,and(eq(t.collectionSchedules.id,t.scheduledExecutions.scheduleId),eq(t.collectionSchedules.siteId,t.scheduledExecutions.siteId),eq(t.collectionSchedules.ownerId,t.scheduledExecutions.ownerId)))
     .where(and(eq(t.scheduledExecutions.siteId,site.id),eq(t.scheduledExecutions.ownerId,site.ownerId),or(eq(t.scheduledExecutions.id,runId),eq(t.scheduledExecutions.runId,runId))));
   // Compare after the DB await so a clock boundary crossed during the read also blocks dispatch.
-  if(deadline?.endsAt!==null&&deadline?.endsAt!==undefined&&deadline.endsAt<=Date.now())throw new ProductError(409,'일정의 종료 시각이 지나 새 답변 수집을 중단했습니다.','schedule_expired');
+  assertRunDeadline(deadline?.endsAt);
+  return deadline?.endsAt;
+}
+function assertRunDeadline(endsAt:number|null|undefined){
+  if(endsAt!==null&&endsAt!==undefined&&endsAt<=Date.now())throw new ProductError(409,'일정의 종료 시각이 지나 새 답변 수집을 중단했습니다.','schedule_expired');
 }
 
 export async function processRun(site:typeof t.sites.$inferSelect,runId:string){
@@ -73,7 +77,9 @@ export async function processRun(site:typeof t.sites.$inferSelect,runId:string){
           const sample=syntheticAnswer(publicSite(site),competitors,{id:a.promptId,text:a.promptText},a.model,runId,now());
           result={text:sample.text,citations:sample.citations,inputTokens:0,outputTokens:0,providerResponseId:null};
         }else {
-          await requireRunScheduleActive(site,runId);
+          // Recheck synchronously after the caller await: another dispatch can
+          // cross the deadline in that microtask gap. Keep the two-call lease bounded.
+          assertRunDeadline(await requireRunScheduleActive(site,runId));
           result=await askProvider(a.model,a.promptText,{search:true,instructions:`Answer the user's product discovery question objectively in ${site.language}. Consider the ${site.country} market where relevant. ${a.model==='gemini-3.8-flash'?'Use your model knowledge only. Web search is unavailable. Do not imply current verification or invent sources.':'Search the web and cite relevant sources.'} Explain tradeoffs. Do not assume any particular brand should be recommended. Do not invent sources or claims.`,maxTokens:1800});
         }
         const mentions=extractMentions(result.text,result.citations,[site,...competitors]);

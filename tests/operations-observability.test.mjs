@@ -10,9 +10,10 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 globalThis.__observationEnv={OPENAI_API_KEY:'fixture-only',LUMEN_PROVIDER_MODE:'paid_enabled'};
 globalThis.__observationHeaders=new Headers();
 registerHooks({resolve(specifier,context,next){
-  if(specifier==='cloudflare:workers')return {url:'data:text/javascript,export const env=globalThis.__observationEnv;',shortCircuit:true};
+  if(specifier==='@/lib/runtime-env')return {url:'data:text/javascript,export const env=globalThis.__observationEnv;',shortCircuit:true};
   if(specifier==='next/headers')return {url:'data:text/javascript,export async function headers(){return globalThis.__observationHeaders;}',shortCircuit:true};
   if(specifier==='next/navigation')return {url:'data:text/javascript,export function redirect(){throw new Error("redirect");}',shortCircuit:true};
+  if (specifier === '@/app/chatgpt-auth') return {url:pathToFileURL(path.join(root,'tests/fixtures/legacy-auth.ts')).href,shortCircuit:true};
   const base=specifier.startsWith('@/')?path.join(root,specifier.slice(2)):specifier.startsWith('.')&&context.parentURL?.startsWith('file:')?fileURLToPath(new URL(specifier,context.parentURL)):null;
   if(base)for(const suffix of ['.ts','/index.ts'])if(existsSync(base+suffix))return {url:pathToFileURL(base+suffix).href,shortCircuit:true};
   return next(specifier,context);

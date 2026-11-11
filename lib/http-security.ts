@@ -24,7 +24,7 @@ export function prepareSecurityRequest(request: Request): { request: Request; no
   const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(24))));
   const policy = documentPolicy(nonce, new URL(request.url).pathname === '/');
   const headers = new Headers(request.headers);
-  // Never accept a client-selected nonce. Vinext reads this trusted request policy
+  // Never accept a client-selected nonce. Next.js reads this trusted request policy
   // when rendering React bootstrap, streamed RSC chunks and framework scripts.
   headers.set('Content-Security-Policy', policy);
   headers.delete('Content-Security-Policy-Report-Only');

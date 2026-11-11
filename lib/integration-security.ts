@@ -1,4 +1,4 @@
-import { env } from 'cloudflare:workers';
+import { env } from '@/lib/runtime-env';
 import { ProductError } from './product-validation';
 
 export type IntegrationEnv = typeof env & {
@@ -6,7 +6,7 @@ export type IntegrationEnv = typeof env & {
   GOOGLE_CLIENT_ID?: string; GOOGLE_CLIENT_SECRET?: string; INTEGRATION_ENCRYPTION_KEY?: string; INTEGRATION_ENCRYPTION_KEY_PREVIOUS?: string;
 };
 export const settings = () => env as IntegrationEnv;
-export function integrationDb(): D1Database { if (!env.DB) throw new ProductError(503, 'Database binding is unavailable.', 'database_unavailable'); return env.DB; }
+export function integrationDb(): Pick<D1Database, 'prepare' | 'batch' | 'exec'> { if (!env.DB) throw new ProductError(503, 'Database binding is unavailable.', 'database_unavailable'); return env.DB; }
 export const record = (value: unknown): Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 export const array = (value: unknown) => Array.isArray(value) ? value.map(record) : [];
 export const isoNow = () => new Date().toISOString();

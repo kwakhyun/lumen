@@ -8,7 +8,7 @@ import { ProductError } from './product-validation';
 import { providerStatuses } from './providers';
 export const now=()=>new Date().toISOString();
 export const uid=()=>crypto.randomUUID();
-export async function requireUser(){const u=await getChatGPTUser();if(!u)throw new ProductError(401,'Sign in with ChatGPT to access your workspace.','unauthenticated');return u;}
+export async function requireUser(){const u=await getChatGPTUser();if(!u)throw new ProductError(401,'Sign in to access your workspace.','unauthenticated');return u;}
 export function publicSite(row:typeof tables.sites.$inferSelect):Site{const {ownerId,...rest}=row;void ownerId;return rest;}
 export function publicRun(row:typeof tables.runs.$inferSelect):Run{const {leaseUntil,leaseToken,models,...rest}=row;void leaseUntil;void leaseToken;return {...rest,models:JSON.parse(models)};}
 export function publicAnswer(row:typeof tables.answers.$inferSelect):Answer{return {...row,citations:JSON.parse(row.citations),mentions:JSON.parse(row.mentions)};}
@@ -54,6 +54,6 @@ export function errorResponse(error:unknown):Response{
   // Do not leak SQL, request payloads, upstream credentials or stack traces.
   const message=error instanceof Error?error.message:'';
   if(/UNIQUE constraint failed/i.test(message))return Response.json({error:'This record already exists.',code:'duplicate'},{status:409});
-  if(/binding|no such table|D1_ERROR/i.test(message))return Response.json({error:'The database is not ready. Apply the D1 migrations and check the DB binding.',code:'database_unavailable'},{status:503});
+  if(/binding|no such table|D1_ERROR|Turso database|remote Turso/i.test(message))return Response.json({error:'데이터베이스 연결을 준비하고 있습니다. 잠시 후 다시 시도해 주세요.',code:'database_unavailable'},{status:503});
   return Response.json({error:'The operation could not be completed. Please retry.',code:'internal_error'},{status:500});
 }

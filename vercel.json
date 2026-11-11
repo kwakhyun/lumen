@@ -1,0 +1,24 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": [
+    "hnd1"
+  ],
+  "functions": {
+    "app/api/**/route.ts": {
+      "maxDuration": 300
+    },
+    "app/mcp/route.ts": {
+      "maxDuration": 300
+    }
+  },
+  "schedules": {
+    "hourly-due-work": {
+      "schedule": "0 * * * *",
+      "timezone": "Asia/Seoul",
+      "jitter": 15,
+      "path": "/api/operations/scheduled",
+      "requestMethod": "POST"
+    }
+  }
+}

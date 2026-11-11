@@ -1,4 +1,4 @@
-import { env } from 'cloudflare:workers';
+import { env } from '@/lib/runtime-env';
 import type { ProviderResult } from './providers';
 import type { Citation } from './product-types';
 import { ProductError } from './product-validation';

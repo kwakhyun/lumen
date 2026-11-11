@@ -18,10 +18,11 @@ globalThis.__lumenAnalysisEnv = env;
 globalThis.__lumenAnalysisHeaders = new Headers();
 registerHooks({
   resolve(specifier, context, next) {
-    if (specifier === 'cloudflare:workers') return { url: 'data:text/javascript,export const env=globalThis.__lumenAnalysisEnv;', shortCircuit: true };
+    if (specifier === '@/lib/runtime-env') return { url: 'data:text/javascript,export const env=globalThis.__lumenAnalysisEnv;', shortCircuit: true };
     if (specifier === 'next/headers') return { url: 'data:text/javascript,export async function headers(){return globalThis.__lumenAnalysisHeaders;}', shortCircuit: true };
     if (specifier === 'next/navigation') return { url: 'data:text/javascript,export function redirect(){throw new Error("Unexpected redirect in analysis fixture");}', shortCircuit: true };
-    if (specifier.startsWith('@/')) {
+    if (specifier === '@/app/chatgpt-auth') return {url:pathToFileURL(path.join(root,'tests/fixtures/legacy-auth.ts')).href,shortCircuit:true};
+  if (specifier.startsWith('@/')) {
       const base = path.join(root, specifier.slice(2));
       for (const suffix of ['.ts', '/index.ts']) if (existsSync(base + suffix)) return { url: pathToFileURL(base + suffix).href, shortCircuit: true };
     }

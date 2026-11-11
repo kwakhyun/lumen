@@ -1,0 +1,23 @@
+node_modules
+.next
+.git
+.openai
+.wrangler
+.sites-runtime
+.agents
+.codex
+.env*
+.dev.vars*
+outputs
+work
+dist
+examples
+tests
+TEMP-*
+*.sqlite
+*.sqlite3
+*.db
+*.tsbuildinfo
+
+# Legacy Sites bundler is not part of the Next.js deployment.
+vite.config.ts

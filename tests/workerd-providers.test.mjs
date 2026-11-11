@@ -12,7 +12,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let mf, redirect = false, calls = [];
 before(async () => {
   const bundled = await build({
-    absWorkingDir: root, bundle: true, write: false, format: 'esm', platform: 'neutral', target: 'es2022', external: ['cloudflare:workers'],
+    absWorkingDir: root, bundle: true, write: false, format: 'esm', platform: 'neutral', target: 'es2022', external: ['cloudflare:workers'], plugins: [{name:'fixture-runtime',setup(build){build.onResolve({filter:/^@\/lib\/runtime-env$/},()=>({path:'fixture-env',namespace:'fixture'}));build.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:"export { env } from 'cloudflare:workers';",loader:'js'}));}}],
     stdin: { resolveDir: root, sourcefile: 'workerd-provider-fixture.ts', loader: 'ts', contents: `
       import { askOpenAI } from './lib/providers';
       import { askGemini } from './lib/providers-gemini';
