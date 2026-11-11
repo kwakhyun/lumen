@@ -5,7 +5,7 @@ export function parseProviderResponse(value:unknown){
   const data=(value&&typeof value==='object'?value:{}) as Record<string,unknown>;
   const texts:string[]=[];const citations:Citation[]=[];let offset=0;
   for(const item of Array.isArray(data.output)?data.output:[]){
-    if(item?.type!=='message'||!Array.isArray(item.content))continue;
+    if(item?.type!=='message'||item.phase==='commentary'||(item.role&&item.role!=='assistant')||!Array.isArray(item.content))continue;
     for(const part of item.content){if(part?.type!=='output_text'||typeof part.text!=='string')continue;
       const text=part.text;for(const a of Array.isArray(part.annotations)?part.annotations:[]){if(a?.type!=='url_citation'||typeof a.url!=='string')continue;const u=safeHttpUrl(a.url);if(!u)continue;
         citations.push({url:u.href,title:typeof a.title==='string'?a.title:u.hostname,domain:u.hostname.toLowerCase().replace(/^www\./,''),startIndex:offset+Math.max(0,Math.min(text.length,Number.isFinite(a.start_index)?a.start_index:0)),endIndex:offset+Math.max(0,Math.min(text.length,Number.isFinite(a.end_index)?a.end_index:0)),provenance:'provider_annotation'});

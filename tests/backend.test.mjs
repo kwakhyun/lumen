@@ -54,7 +54,7 @@ test('provider citations only use typed annotations; text URLs cannot fabricate 
   assert.equal(r.citations.length,1);assert.equal(r.citations[0].domain,'docs.acme.com');assert.equal(r.citations[0].provenance,'provider_annotation');assert.equal(r.providerResponseId,'resp_test');assert.equal(r.inputTokens,10);
 });
 test('metric denominators exclude failures, deduplicate mentions, and distinguish coverage',()=>{
-  const base={status:'completed',model:'gpt-4.1-mini',mode:'live',createdAt:'2026-10-18T00:00:00Z',completedAt:null,citations:[]};
+  const base={status:'completed',model:'gpt-6.1-terra',mode:'live',createdAt:'2026-10-18T00:00:00Z',completedAt:null,citations:[]};
   const a={...base,promptId:'p1',citations:[{domain:'acme.com',url:'https://acme.com/',provenance:'provider_annotation'}],mentions:[{domain:'acme.com',mentioned:true,cited:true,rank:2},{domain:'rival.com',mentioned:true,cited:false,rank:1}]};
   const b={...base,promptId:'p1',mentions:[{domain:'acme.com',mentioned:false,cited:false,rank:null},{domain:'rival.com',mentioned:true,cited:true,rank:1}]};
   const m=computeMetrics({name:'Acme',domain:'acme.com'},[{name:'Rival',domain:'rival.com'}],[a,b,{...base,promptId:'p2',status:'failed',mentions:[]}],[{id:'p1',active:true},{id:'p2',active:true}]);
@@ -77,15 +77,15 @@ test('cross-tenant reads and writes are rejected before provider calls',async()=
   const before=await globalThis.__lumenTestEnv.DB.prepare('SELECT count(*) n FROM quotas').first();
   const read=await call('GET',`sites/${siteId}/state`,undefined,'bob');assert.equal(read.response.status,404);
   const write=await call('PATCH',`sites/${siteId}/prompts/${promptId}`,{text:'Changed by attacker'},'bob');assert.equal(write.response.status,404);
-  const cost=await call('POST',`sites/${siteId}/runs`,{models:['gpt-4.1-mini'],mode:'live'},'bob');assert.equal(cost.response.status,404);
+  const cost=await call('POST',`sites/${siteId}/runs`,{models:['gpt-6.1-terra'],mode:'live'},'bob');assert.equal(cost.response.status,404);
   const runCount=await globalThis.__lumenTestEnv.DB.prepare('SELECT count(*) n FROM runs').first();assert.equal(runCount.n,0);assert.ok(before.n>=0);
 });
-test('provider unavailable returns explicit 503 without fake run',async()=>{const r=await call('POST',`sites/${siteId}/runs`,{models:['gpt-4.1-mini'],mode:'live'});assert.equal(r.response.status,503);assert.equal(r.data.code,'provider_unavailable');});
+test('provider unavailable returns explicit 503 without fake run',async()=>{const r=await call('POST',`sites/${siteId}/runs`,{models:['gpt-6.1-terra'],mode:'live'});assert.equal(r.response.status,503);assert.equal(r.data.code,'provider_unavailable');});
 test('a real response fixture persists original text and annotation provenance',async()=>{
   globalThis.__lumenTestEnv.OPENAI_API_KEY='unit-test-value';const originalFetch=globalThis.fetch;let calls=0;
   globalThis.fetch=async(url,init)=>{assert.equal(url,'https://api.openai.com/v1/responses');const body=JSON.parse(init.body);assert.equal(body.store,false);assert.equal(body.tools[0].type,'web_search');assert.equal(body.input,'What are the best collaboration platforms?');calls++;return Response.json({id:'resp_fixture',status:'completed',output:[{type:'message',content:[{type:'output_text',text:'Acme is one option. Compare pricing and fit.',annotations:[{type:'url_citation',url:'https://acme.com/product',title:'Product',start_index:0,end_index:18}]}]}],usage:{input_tokens:60,output_tokens:20}});};
   try{
-    const created=await call('POST',`sites/${siteId}/runs`,{models:['gpt-4.1-mini'],mode:'live'});assert.equal(created.response.status,201);
+    const created=await call('POST',`sites/${siteId}/runs`,{models:['gpt-6.1-terra'],mode:'live'});assert.equal(created.response.status,201);
     const processed=await call('POST',`sites/${siteId}/runs/${created.data.run.id}/process`);assert.equal(processed.response.status,200);assert.equal(processed.data.run.status,'completed');assert.equal(processed.data.answers[0].providerResponseId,'resp_fixture');assert.equal(processed.data.answers[0].citations[0].provenance,'provider_annotation');assert.equal(calls,1);
     const repeated=await call('POST',`sites/${siteId}/runs/${created.data.run.id}/process`);assert.equal(repeated.data.run.status,'completed');assert.equal(calls,1);
   }finally{globalThis.fetch=originalFetch;delete globalThis.__lumenTestEnv.OPENAI_API_KEY;}
@@ -99,7 +99,7 @@ test('demo seed is persistent, synthetic and isolated from live runs',async()=>{
   assert.ok(state.data.answers.flatMap(answer=>answer.citations).every(citation=>/[가-힣]/.test(citation.title)&&citation.title.includes('합성 예시')&&new URL(citation.url).hostname===citation.domain));
   const report=state.data.documents.find(document=>document.kind==='report');assert.match(report.content,/Gemini API/);assert.doesNotMatch(report.content,/연결된 OpenAI API/);
   const second=await call('POST','demo');assert.equal(second.data.site.id,id);
-  const mixed=await call('POST',`sites/${id}/runs`,{mode:'live',models:['gpt-4.1-mini']});assert.equal(mixed.response.status,400);assert.equal(mixed.data.code,'mode_mismatch');
+  const mixed=await call('POST',`sites/${id}/runs`,{mode:'live',models:['gpt-6.1-terra']});assert.equal(mixed.response.status,400);assert.equal(mixed.data.code,'mode_mismatch');
 });
 test('cross-site child IDs cannot mutate another workspace',async()=>{
   const other=await call('POST','sites',{name:'Other',domain:'other.example'});const r=await call('PATCH',`sites/${other.data.site.id}/prompts/${promptId}`,{text:'Incorrectly scoped'});assert.equal(r.response.status,404);
@@ -117,12 +117,12 @@ test('configured Gemini and Perplexity dispatch independently without an OpenAI 
 test('incomplete provider output is failed and excluded from completed answers',async()=>{
   globalThis.__lumenTestEnv.OPENAI_API_KEY='unit-test-value';const previous=globalThis.fetch;
   globalThis.fetch=async()=>Response.json({id:'resp_incomplete',status:'incomplete',output:[{type:'message',content:[{type:'output_text',text:'Acme partial answer',annotations:[]}]}]});
-  try{const r=await call('POST',`sites/${siteId}/runs`,{models:['gpt-4.1-mini'],mode:'live'});const done=await call('POST',`sites/${siteId}/runs/${r.data.run.id}/process`);assert.equal(done.data.run.status,'failed');assert.equal(done.data.answers[0].status,'failed');assert.equal(done.data.answers[0].text,'');assert.match(done.data.answers[0].error,/did not complete/);}finally{globalThis.fetch=previous;delete globalThis.__lumenTestEnv.OPENAI_API_KEY;}
+  try{const r=await call('POST',`sites/${siteId}/runs`,{models:['gpt-6.1-terra'],mode:'live'});const done=await call('POST',`sites/${siteId}/runs/${r.data.run.id}/process`);assert.equal(done.data.run.status,'failed');assert.equal(done.data.answers[0].status,'failed');assert.equal(done.data.answers[0].text,'');assert.match(done.data.answers[0].error,/did not complete/);}finally{globalThis.fetch=previous;delete globalThis.__lumenTestEnv.OPENAI_API_KEY;}
 });
 test('persistent lease blocks overlapping workers and fences stale answer writes',async()=>{
   globalThis.__lumenTestEnv.OPENAI_API_KEY='unit-test-value';const previous=globalThis.fetch;let begin,finish;const started=new Promise(r=>begin=r),release=new Promise(r=>finish=r);let calls=0;
   globalThis.fetch=async()=>{calls++;begin();await release;return Response.json({id:'resp_stale',status:'completed',output:[{type:'message',content:[{type:'output_text',text:'Acme stale answer',annotations:[]}]}]});};
-  try{const created=await call('POST',`sites/${siteId}/runs`,{models:['gpt-4.1-mini'],mode:'live'});const runId=created.data.run.id;
+  try{const created=await call('POST',`sites/${siteId}/runs`,{models:['gpt-6.1-terra'],mode:'live'});const runId=created.data.run.id;
     const first=call('POST',`sites/${siteId}/runs/${runId}/process`);await started;
     const overlapping=await call('POST',`sites/${siteId}/runs/${runId}/process`);assert.equal(overlapping.response.status,409);assert.equal(calls,1);
     await globalThis.__lumenTestEnv.DB.prepare('UPDATE runs SET lease_token=?,lease_until=? WHERE id=?').bind('new-owner',Date.now()+120000,runId).run();finish();
@@ -140,7 +140,7 @@ test('traffic ingestion enforces origin boundaries and drops URL query strings',
 });
 test('full CSV export streams beyond the displayed evidence limit',async()=>{
   const created=await call('POST','sites',{name:'Bulk',domain:'bulk.example'}),bulk=created.data.site.id;const db=globalThis.__lumenTestEnv.DB;
-  for(let r=0;r<35;r++){const runId=crypto.randomUUID(),date=new Date(Date.now()-r*1000).toISOString();await db.prepare('INSERT INTO runs (id,site_id,mode,status,models,total,completed,created_at,completed_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(runId,bulk,'live','completed','["gpt-4.1-mini"]',30,30,date,date).run();await db.batch(Array.from({length:30},(_,i)=>db.prepare('INSERT INTO answers (id,site_id,run_id,prompt_id,prompt_text,model,provider,mode,status,text,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),bulk,runId,crypto.randomUUID(),'A bulk question','gpt-4.1-mini','Fixture','live','completed',`evidence-${r*30+i}`,date)));}
+  for(let r=0;r<35;r++){const runId=crypto.randomUUID(),date=new Date(Date.now()-r*1000).toISOString();await db.prepare('INSERT INTO runs (id,site_id,mode,status,models,total,completed,created_at,completed_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(runId,bulk,'live','completed','["gpt-6.1-terra"]',30,30,date,date).run();await db.batch(Array.from({length:30},(_,i)=>db.prepare('INSERT INTO answers (id,site_id,run_id,prompt_id,prompt_text,model,provider,mode,status,text,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),bulk,runId,crypto.randomUUID(),'A bulk question','gpt-6.1-terra','Fixture','live','completed',`evidence-${r*30+i}`,date)));}
   const state=await call('GET',`sites/${bulk}/state`);assert.equal(state.data.answers.length,1000);assert.equal(state.data.dataWindow.totalAnswers,1050);assert.equal(state.data.dataWindow.truncated,true);
   const exported=await call('GET',`sites/${bulk}/export`);assert.equal(exported.response.status,200);assert.equal((exported.data.match(/"evidence-\d+"/g)||[]).length,1050);await call('DELETE',`sites/${bulk}`);
 });
@@ -168,7 +168,7 @@ test('free-service consent is tenant bound and all generation routes use Gemini 
    const result=await call('POST',`sites/${id}/${resource}`,body);assert.ok([200,201].includes(result.response.status),JSON.stringify(result.data));
   }
   assert.equal(calls,3);
-  const paid=await call('POST',`sites/${id}/runs`,{mode:'live',models:['gpt-4.1-mini']});assert.equal(paid.data.code,'paid_provider_disabled');assert.equal(calls,3);
+  const paid=await call('POST',`sites/${id}/runs`,{mode:'live',models:['gpt-6.1-terra']});assert.equal(paid.data.code,'paid_provider_disabled');assert.equal(calls,3);
  } finally {e.LUMEN_PROVIDER_MODE='paid_enabled';delete e.GEMINI_API_KEY;delete e.OPENAI_API_KEY;globalThis.fetch=previous;}
 });
 

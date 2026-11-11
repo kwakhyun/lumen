@@ -112,7 +112,7 @@ test('provider HTTP, timeout and JSON errors expose only sanitized messages', as
       globalThis.fetch = async () => new Response('private upstream error', { status: 429 });
       await assert.rejects(() => ask('Question'), error => error.status === 429 && !error.message.includes('private'));
       globalThis.fetch = async () => { throw new DOMException('private timeout detail', 'TimeoutError'); };
-      await assert.rejects(() => ask('Question'), error => error.code === 'provider_network_error' && !error.message.includes('private'));
+      await assert.rejects(() => ask('Question'), error => error.code === (key === 'GEMINI_API_KEY' ? 'provider_timeout' : 'provider_network_error') && !error.message.includes('private'));
       globalThis.fetch = async () => new Response('invalid json');
       await assert.rejects(() => ask('Question'), { code: 'invalid_provider_response' });
     } finally { delete globalThis.__providerFixtureEnv[key]; globalThis.fetch = noNetwork; }
@@ -148,10 +148,66 @@ test('free mode is fail-closed even with paid keys and Gemini failure never fall
       assert.equal(providerStatuses().find(p=>p.id==='openai').available,false);
       await assert.rejects(()=>askOpenAI('test'),{code:'paid_provider_disabled'});
       await assert.rejects(()=>askPerplexity('test'),{code:'paid_provider_disabled'});
-      await assert.rejects(()=>askProvider('gpt-4.1-mini','test'),{code:'paid_provider_disabled'});
+      await assert.rejects(()=>askProvider('gpt-6.1-terra','test'),{code:'paid_provider_disabled'});
     }
     let calls=0;
     globalThis.fetch=async(url,init)=>{calls++;assert.match(url,/generativelanguage.googleapis.com/);const body=JSON.parse(init.body);assert.equal(body.generationConfig.responseMimeType,'application/json');assert.equal(body.generationConfig.maxOutputTokens,1800);return new Response('limited',{status:429});};
-    await assert.rejects(()=>askProvider(GEMINI_MODEL,'test',{json:true,maxTokens:1800}),{code:'provider_error'});assert.equal(calls,1);
+    await assert.rejects(()=>askProvider(GEMINI_MODEL,'test',{json:true,maxTokens:1800}),{code:'provider_rate_limited'});assert.equal(calls,1);
   } finally {e.LUMEN_PROVIDER_MODE='paid_enabled';delete e.OPENAI_API_KEY;delete e.PERPLEXITY_API_KEY;delete e.GEMINI_API_KEY;globalThis.fetch=noNetwork;}
+});
+
+test('GPT-6.1 requests preserve workload controls and never collect commentary or a different model', async () => {
+  const env = globalThis.__providerFixtureEnv; env.OPENAI_API_KEY = 'fixture-only';
+  const { LIVE_MODEL } = await import('../lib/product-types.ts');
+  let calls = 0;
+  try {
+    globalThis.fetch = async (_url, init) => {
+      calls++; const body = JSON.parse(init.body);
+      assert.equal(body.model, 'gpt-6.1-terra'); assert.equal(body.store, false);
+      assert.deepEqual(body.reasoning, { effort: 'none' }); assert.equal(body.text.verbosity, 'medium');
+      assert.equal(body.service_tier, 'default'); assert.equal(body.max_output_tokens, 3500);
+      assert.equal(body.text.format, undefined); assert.equal(body.tools, undefined);
+      return Response.json({ model: LIVE_MODEL, status: 'completed', output: [
+        { type: 'message', role: 'assistant', phase: 'commentary', content: [{ type: 'output_text', text: 'Searching now' }] },
+        { type: 'message', role: 'assistant', phase: 'final_answer', content: [{ type: 'output_text', text: 'Completed analysis' }] },
+      ], usage: { input_tokens: 50, output_tokens: 10 } });
+    };
+    assert.equal((await askOpenAI('Scoped evidence', { maxTokens: 3500 })).text, 'Completed analysis');
+    globalThis.fetch = async (_url, init) => {
+      calls++; const body = JSON.parse(init.body); assert.equal(body.text.format.type, 'json_object');
+      assert.equal(body.tools[0].type, 'web_search'); assert.equal(body.tool_choice, 'required'); assert.equal(body.max_tool_calls, 1);
+      return Response.json({ model: 'gpt-4.1-mini', status: 'completed', output: [] });
+    };
+    await assert.rejects(() => askOpenAI('JSON query', { json: true, search: true }), { code: 'unexpected_provider_model' });
+    assert.equal(calls, 2);
+  } finally { delete env.OPENAI_API_KEY; globalThis.fetch = noNetwork; }
+});
+
+test('Gemini failures distinguish capacity, permissions and quota without secrets, retries or fallback', async () => {
+  const env=globalThis.__providerFixtureEnv; env.GEMINI_API_KEY='fixture-key-must-not-leak';
+  const previousWarn=console.warn, previousTimeout=AbortSignal.timeout, events=[]; let calls=0;
+  console.warn = event => events.push(JSON.parse(event));
+  AbortSignal.timeout = milliseconds => { assert.equal(milliseconds,90000);return previousTimeout(milliseconds); };
+  try {
+    for (const [status, code] of [[503,'provider_overloaded'],[401,'provider_access_denied'],[403,'provider_access_denied'],[400,'provider_request_invalid'],[404,'provider_model_unavailable'],[429,'provider_rate_limited']]) {
+      globalThis.fetch=async (_url,init)=>{ calls++; const body=JSON.parse(init.body); assert.equal(body.generationConfig.candidateCount,undefined); return Response.json({error:{message:'fixture-key-must-not-leak private prompt'}},{status}); };
+      await assert.rejects(()=>askGemini('private prompt'),e=>e.code===code&&e.message.includes(`HTTP ${status}`)&&!e.message.includes('private'));
+      assert.equal(events.at(-1).upstreamStatus,status);
+    }
+    assert.equal(calls,6); assert.ok(events.every(e=>e.event==='ai_provider_failure'&&e.model===GEMINI_MODEL));
+    assert.doesNotMatch(JSON.stringify(events),/fixture-key|private prompt/);
+  } finally { console.warn=previousWarn;AbortSignal.timeout=previousTimeout;delete env.GEMINI_API_KEY;globalThis.fetch=noNetwork; }
+});
+
+test('deadline during a response body is classified as timeout, never as malformed JSON', async () => {
+  const stream=new ReadableStream({start(controller){controller.error(new DOMException('private payload','TimeoutError'));}});
+  await assert.rejects(()=>readProviderJson(new Response(stream),'Gemini'),e=>e.code==='provider_timeout'&&!e.message.includes('private'));
+});
+
+test('current and historical GPT annotations remain measurable while legacy live dispatch is rejected', async () => {
+  const {citationMeasurementAvailable}=await import('../lib/metrics.ts');
+  const {askProvider}=await import('../lib/providers.ts');
+  for(const model of ['gpt-6.1-terra','gpt-4.1-mini'])assert.equal(citationMeasurementAvailable({mode:'live',model}),true);
+  assert.equal(citationMeasurementAvailable({mode:'live',model:'unknown-gpt'}),false);
+  await assert.rejects(()=>askProvider('gpt-4.1-mini','Never silently replace historical model'),{code:'provider_unavailable'});
 });

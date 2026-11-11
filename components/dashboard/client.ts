@@ -14,6 +14,12 @@ const errorCopy: Record<string, string> = {
   provider_unavailable: "현재 이 AI 모델을 사용할 수 없어요. 연결 관리에서 사용 가능한 모델을 확인하세요.",
   paid_provider_disabled: "현재 무료 서비스에서는 Gemini만 사용할 수 있어요. 유료 AI 모델의 호출은 차단돼요.",
   provider_network_error: "AI 제공자와 연결하지 못했거나 응답 시간이 초과됐어요. 이 답변은 수집되지 않았어요.",
+  provider_timeout: "AI 제공자의 응답 시간이 초과됐어요. 결과는 저장되지 않았으며, 자동으로 중복 요청하지 않습니다. 잠시 후 다시 시도해 주세요.",
+  provider_overloaded: "AI 제공자가 일시적인 서버 오류를 반환했어요. 잠시 후 다시 시도해 주세요. 이 오류만으로 API 키를 교체할 필요는 없어요.",
+  provider_access_denied: "AI 제공자가 인증이나 프로젝트 접근을 거부했어요. 운영자가 키, 모델 권한과 결제 상태를 확인해야 해요.",
+  provider_model_unavailable: "설정된 AI 모델에 접근할 수 없어요. 운영자가 모델 이름과 프로젝트 권한을 확인해야 해요.",
+  provider_request_invalid: "AI 제공자가 요청 설정을 거부했어요. 운영자에게 문의해 주세요.",
+  provider_rate_limited: "AI 제공자의 요청량이나 결제 한도에 도달했어요. 잠시 후 다시 시도하거나 운영자에게 문의해 주세요.",
   provider_error: "AI 제공자가 요청을 처리하지 못했어요. 연결 상태와 사용 한도를 확인하세요.",
   invalid_provider_response: "AI 제공자의 응답을 읽을 수 없어 결과를 저장하지 못했어요.",
   incomplete_provider_response: "AI 답변이 끝까지 생성되지 않았어요. 불완전한 답변은 지표에 포함하지 않아요.",
@@ -118,4 +124,4 @@ export function useResource<T>(path: string) {
   return { data: isCurrentPath ? resource.data : null, loading: !isCurrentPath || resource.loading, error: isCurrentPath ? resource.error : "", refresh, setData };
 }
 export function localDateTime(iso: string | null | undefined) { return iso ? new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(iso)) : "기록 없음"; }
-export function modelLabel(id: string) { return ({ "gpt-4.1-mini": "GPT-4.1 mini", "gemini-2.5-flash": "Gemini 2.5 Flash", "gemini-3.8-flash": "Gemini 3.8 Flash", "perplexity/sonar": "Perplexity Sonar", "sonar": "Perplexity Sonar", "demo-gemini": "Gemini 샘플", "demo-perplexity": "Perplexity 샘플" } as Record<string,string>)[id] || id; }
+export function modelLabel(id: string) { return ({ "gpt-6.1-terra": "GPT-6.1 Terra", "gpt-4.1-mini": "GPT-4.1 mini", "gemini-2.5-flash": "Gemini 2.5 Flash", "gemini-3.8-flash": "Gemini 3.8 Flash", "perplexity/sonar": "Perplexity Sonar", "sonar": "Perplexity Sonar", "demo-gemini": "Gemini 샘플", "demo-perplexity": "Perplexity 샘플" } as Record<string,string>)[id] || id; }

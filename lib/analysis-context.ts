@@ -56,7 +56,7 @@ export function buildAnalysisContext(
 }
 
 /** Persist a server-authored scope snapshot even if the generated prose omits it. */
-export function analysisScopeMarkdown(scope: AnalysisScopeMetadata): string {
+export function analysisScopeMarkdown(scope: AnalysisScopeMetadata, generationModel: string | null = null): string {
   const window = scope.sourceWindow;
   return [
     '## 분석 기준',
@@ -70,6 +70,7 @@ export function analysisScopeMarkdown(scope: AnalysisScopeMetadata): string {
     scope.truncated
       ? `- 조회 한도: 최근 ${window.days}일 전체 답변 ${window.totalAnswers}개 중 ${window.answersReturned}개를 불러왔습니다. 선택 조건의 답변도 일부 누락될 수 있습니다.`
       : `- 조회 범위: 최근 ${window.days}일 답변 ${window.answersReturned}개를 불러왔으며 조회 한도에 따른 누락은 없습니다.`,
+    ...(generationModel ? [`- 생성 모델: \`${generationModel}\``] : []),
     '- 관측 모델은 수집된 답변의 모델이며, 문서를 생성하는 모델과 다를 수 있습니다.',
   ].join('\n');
 }

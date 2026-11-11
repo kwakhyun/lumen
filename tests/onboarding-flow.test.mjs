@@ -147,7 +147,7 @@ test('new free user reaches a first saved answer without paid calls or duplicate
   });
 
   await t.test('configured paid models remain blocked before reservation or dispatch', async () => {
-    for (const paidModel of ['gpt-4.1-mini', 'perplexity/sonar']) {
+    for (const paidModel of ['gpt-6.1-terra', 'perplexity/sonar']) {
       const blocked = await call('POST', `sites/${siteId}/runs`, { mode: 'live', models: [paidModel], promptIds: [promptId] });
       assert.equal(blocked.data.code, 'paid_provider_disabled');
       assert.notEqual(blocked.status, 201);

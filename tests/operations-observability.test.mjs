@@ -43,7 +43,7 @@ async function workspace(owner,promptCount=1){
   for(let i=0;i<promptCount;i++)await db.prepare('INSERT INTO prompts(id,site_id,text,created_at) VALUES (?,?,?,?)').bind(crypto.randomUUID(),id,'Private fixture question '+i,date).run();
   return {id,owner};
 }
-async function schedule(w){return ops.createSchedule(w.owner,ops.scheduleInput.parse({siteId:w.id,name:'Private schedule',frequency:'daily',timezone:'UTC',hour:9,minute:0,models:['gpt-4.1-mini']}));}
+async function schedule(w){return ops.createSchedule(w.owner,ops.scheduleInput.parse({siteId:w.id,name:'Private schedule',frequency:'daily',timezone:'UTC',hour:9,minute:0,models:['gpt-6.1-terra']}));}
 const due=id=>db.prepare('UPDATE collection_schedules SET next_run_at=? WHERE id=?').bind(Date.now()-60000,id).run();
 const blank=id=>({tickId:id,queued:0,processed:0,completed:0,failed:0,blocked:0,continuation:false,retryAfterSeconds:0,skipped:false,executionIds:[],runIds:[]});
 async function observation(ownerId,entryPoint='internal',age=0){const input={id:crypto.randomUUID(),ownerId,entryPoint,startedAt:Date.now()-age};assert.equal(await obs.beginTickObservation(input),true);return input;}
@@ -70,7 +70,7 @@ test('concurrent observations preserve one dispatch, one reservation and skipped
   }finally{release?.();globalThis.fetch=previous;}
 });
 test('multi-chunk continuation is observed without adding calls or reserving again',async()=>{
-  const w=await workspace('obs-continuation',3),site=await ownedSite(w.id,w.owner);await createRun(site,{mode:'live',models:['gpt-4.1-mini']});const before=calls;
+  const w=await workspace('obs-continuation',3),site=await ownedSite(w.id,w.owner);await createRun(site,{mode:'live',models:['gpt-6.1-terra']});const before=calls;
   const first=await tickDueSchedules({ownerId:w.owner}),second=await tickDueSchedules({ownerId:w.owner});
   assert.equal(first.continuation,true);assert.equal(second.continuation,false);assert.equal(calls-before,3);assert.equal((await getUsageStatus(w.owner)).daily.used,3);
   const rows=(await obs.readTickHistory(w.owner)).ticks;assert.equal(rows.find(t=>t.id===first.tickId).continuation,true);assert.equal(rows.find(t=>t.id===second.tickId).completed,1);

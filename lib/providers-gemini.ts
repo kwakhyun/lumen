@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import type { ProviderResult } from './providers';
 import { ProductError } from './product-validation';
 import { readProviderJson } from './providers-http';
+import { providerHttpError, providerNetworkError } from './providers-errors';
 
 // Verified 2026-10-18: https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash
 // REST schema: https://ai.google.dev/api/generate-content
@@ -40,6 +41,7 @@ export function parseGeminiResponse(value: unknown): ProviderResult {
 export async function askGemini(input: string, options: { instructions?: string; json?: boolean; maxTokens?: number } = {}): Promise<ProviderResult> {
   const key = (env as typeof env & { GEMINI_API_KEY?: string }).GEMINI_API_KEY?.trim();
   if (!key) throw new ProductError(503, 'Gemini API is not configured on this deployment.', 'provider_unavailable');
+  const startedAt = Date.now();
   let response: Response;
   try {
     response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
@@ -48,17 +50,18 @@ export async function askGemini(input: string, options: { instructions?: string;
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: input }] }],
         systemInstruction: { parts: [{ text: `${options.instructions || 'Answer clearly and accurately. Do not invent facts.'}\nWeb search is unavailable. Do not imply that you searched or verified current sources. Answer the question directly and acknowledge uncertainty.` }] },
-        generationConfig: { candidateCount: 1, maxOutputTokens: Number.isSafeInteger(options.maxTokens)?Math.max(256,Math.min(4096,options.maxTokens!)):4096, ...(options.json?{responseMimeType:'application/json'}:{}), thinkingConfig: { thinkingLevel: 'low', includeThoughts: false } },
+        generationConfig: { maxOutputTokens: Number.isSafeInteger(options.maxTokens)?Math.max(256,Math.min(4096,options.maxTokens!)):4096, ...(options.json?{responseMimeType:'application/json'}:{}), thinkingConfig: { thinkingLevel: 'low', includeThoughts: false } },
       }),
-      signal: AbortSignal.timeout(45000),
+      // A complete response may take longer than the old 45-second deadline.
+      // Stay below the 120-second collection lease; never silently duplicate a billed request.
+      signal: AbortSignal.timeout(90000),
       redirect: 'manual', // workerd-compatible; non-2xx responses, including redirects, are rejected below.
     });
   } catch (error) {
-    throw new ProductError(502, error instanceof Error && /timeout|abort/i.test(error.name) ? 'Gemini request timed out. This answer was not collected.' : 'Gemini could not be reached. This answer was not collected.', 'provider_network_error');
+    return providerNetworkError(error, 'Gemini', GEMINI_MODEL, startedAt);
   }
   if (!response.ok) {
-    await response.body?.cancel();
-    throw new ProductError(response.status === 429 ? 429 : 502, response.status === 429 ? 'Gemini rate or billing limit reached. Check the API project.' : `Gemini rejected the request (HTTP ${response.status}). Check the key, model access and billing.`, 'provider_error');
+    return providerHttpError(response, 'Gemini', GEMINI_MODEL, startedAt);
   }
   const payload = await readProviderJson(response, 'Gemini');
   return parseGeminiResponse(payload);

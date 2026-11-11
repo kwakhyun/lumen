@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, ExternalLink, Loader2, Send, Sparkles } from "lucide-react";
 import type { DashboardScope } from "@/lib/dashboard-scope";
 import type { AnalysisScopeMetadata } from "@/lib/analysis-context";
-import { requestJson as api } from "../client";
+import { requestJson as api, modelLabel } from "../client";
 import { analysisScopeLabel } from "../analysis-scope";
 import type { RequestAiAction } from "../eligibility";
 import MarkdownContent from "../markdown";
 import { Button, Panel } from "../ui";
 
-type Message = { role: "user" | "assistant"; text: string; scope: DashboardScope; resultScope?: AnalysisScopeMetadata; citations?: { url: string; title?: string }[] };
+type Message = { role: "user" | "assistant"; text: string; scope: DashboardScope; resultScope?: AnalysisScopeMetadata; generationModel?: string; citations?: { url: string; title?: string }[] };
 
 function safeUrl(value: string) {
   try { const url = new URL(value); return ["https:", "http:"].includes(url.protocol) ? url.href : "#"; } catch { return "#"; }
@@ -37,8 +37,8 @@ export default function Assistant({ siteId, siteName, demo, scope, requestAI }: 
     setInput(""); setError(""); setPendingScope(requestedScope);
     setMessages(current => [...current, { role: "user", text, scope: requestedScope }]);
     try {
-      const result = await api<{ message: string; citations?: Message["citations"]; scope: AnalysisScopeMetadata }>(`/api/sites/${siteId}/assistant`, "POST", { message: text, scope: requestedScope });
-      setMessages(current => [...current, { role: "assistant", text: result.message, citations: result.citations, scope: result.scope, resultScope: result.scope }]);
+      const result = await api<{ message: string; citations?: Message["citations"]; scope: AnalysisScopeMetadata; generationModel?: string }>(`/api/sites/${siteId}/assistant`, "POST", { message: text, scope: requestedScope });
+      setMessages(current => [...current, { role: "assistant", text: result.message, citations: result.citations, scope: result.scope, resultScope: result.scope, generationModel: result.generationModel }]);
     } catch (cause) {
       setError((cause as Error).message);
       setInput(current => current || text);
@@ -55,6 +55,7 @@ export default function Assistant({ siteId, siteName, demo, scope, requestAI }: 
       {messages.map((message, index) => <div key={index} className={`d-message d-message-${message.role}`}>
         {message.role === "assistant" && <strong>✳ Lumen 어시스턴트</strong>}
         <div className="d-message-scope">{analysisScopeLabel(message.scope)}{message.resultScope && ` / 완료 답변 ${message.resultScope.answerCount}개`}</div>
+        {message.generationModel && <div className="d-message-scope">생성 모델: {modelLabel(message.generationModel)}</div>}
         {message.role === "assistant" ? <MarkdownContent>{message.text}</MarkdownContent> : message.text}
         {message.resultScope?.truncated && <p className="d-field-hint">불러온 최신 답변 범위의 분석입니다. 일부 답변은 표본 한도로 제외됐습니다.</p>}
         {message.citations?.length ? <div className="d-citations">{message.citations.map((citation, citationIndex) => <div className="d-citation" key={citationIndex}><span>{citationIndex + 1}</span><a href={safeUrl(citation.url)} target="_blank" rel="noopener noreferrer">{citation.title || citation.url}</a><ExternalLink size={11} /></div>)}</div> : null}

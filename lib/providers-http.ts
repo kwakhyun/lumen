@@ -1,6 +1,6 @@
 import { ProductError } from './product-validation';
 
-/** Bound received bytes before JSON parsing. Fetch's 45-second signal also aborts body reads. */
+/** Bound received bytes before JSON parsing. The request's deadline signal also aborts body reads. */
 export async function readProviderJson(response: Response, provider: string): Promise<unknown> {
   const reader = response.body?.getReader();
   if (!reader) throw new ProductError(502, `${provider} returned an invalid response.`, 'invalid_provider_response');
@@ -20,6 +20,7 @@ export async function readProviderJson(response: Response, provider: string): Pr
     return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
   } catch (error) {
     if (error instanceof ProductError) throw error;
+    if (error instanceof Error && /timeout|abort/i.test(error.name)) throw new ProductError(502, `${provider} response timed out before completion. No generated result was saved.`, 'provider_timeout');
     throw new ProductError(502, `${provider} returned an invalid or interrupted response.`, 'invalid_provider_response');
   } finally { reader.releaseLock(); }
 }

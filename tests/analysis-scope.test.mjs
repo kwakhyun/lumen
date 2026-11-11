@@ -59,6 +59,11 @@ before(async () => {
     for (const statement of readFileSync(path.join(root, 'drizzle', file), 'utf8').split('--> statement-breakpoint').filter(sql => sql.trim())) await env.DB.prepare(statement).run();
   }
   globalThis.fetch = async (url, init) => {
+    if (String(url) === 'https://api.openai.com/v1/responses' && env.LUMEN_PROVIDER_MODE === 'paid_enabled') {
+      const body = JSON.parse(init.body);
+      requests.push({ body, context: JSON.parse(body.input) });
+      return Response.json({ model: 'gpt-6.1-terra', status: 'completed', output: [{ type: 'message', role: 'assistant', phase: 'final_answer', content: [{ type: 'output_text', text: providerText }] }] });
+    }
     if (String(url) !== endpoint) { unexpectedRequests.push(String(url)); throw new Error('Unexpected external request blocked by analysis fixture'); }
     const body = JSON.parse(init.body);
     requests.push({ body, context: JSON.parse(body.contents[0].parts[0].text) });
@@ -162,6 +167,7 @@ test('reports and content send only selected evidence from all matching runs, th
     assertProviderEvidence(context, f);
     assertScope(context.scope);
     assert.deepEqual(result.data.scope, context.scope);
+    assert.equal(result.data.generationModel, model);
     assert.ok(result.data.document.content.includes(providerText));
     assert.match(result.data.document.content, /7일/);
     assert.match(result.data.document.content, /Gemini|gemini/);
@@ -181,9 +187,31 @@ test('assistant evidence, metrics and response metadata share the selected perio
   assertProviderEvidence(context, f, { key: 'answers' });
   assertScope(context.scope);
   assert.deepEqual(result.data.scope, context.scope);
+  assert.equal(result.data.generationModel, model);
   assert.ok(result.data.message.includes(providerText));
   assert.deepEqual(result.data.citations, []);
   assert.deepEqual(await reservations(f.owner), { count: 1, units: 1 });
+});
+
+test('paid generation identifies GPT while retaining the selected Gemini evidence scope', async () => {
+  const f = await fixture();
+  env.LUMEN_PROVIDER_MODE = 'paid_enabled';
+  env.OPENAI_API_KEY = 'analysis-scope-openai-fixture-only';
+  try {
+    for (const [resource, body, key] of [['documents', { kind: 'report' }, 'evidence'], ['assistant', { message: '선택된 관측 결과를 분석해 주세요.' }, 'answers']]) {
+      const result = await call('POST', `sites/${f.siteId}/${resource}`, { ...body, scope: { period: '7', model } }, f.owner);
+      assert.ok([200, 201].includes(result.status), JSON.stringify(result.data));
+      assert.equal(result.data.generationModel, 'gpt-6.1-terra');
+      assert.equal(requests.at(-1).body.model, 'gpt-6.1-terra');
+      assertProviderEvidence(requests.at(-1).context, f, { key });
+      assertScope(result.data.scope);
+      if (result.data.document) assert.match(result.data.document.content, /생성 모델: `gpt-6\.1-terra`/);
+    }
+    assert.deepEqual(await reservations(f.owner), { count: 2, units: 2 });
+  } finally {
+    env.LUMEN_PROVIDER_MODE = 'free_only';
+    delete env.OPENAI_API_KEY;
+  }
 });
 
 test('30-day scope retains older runs and omitted scope remains compatible with all-model analysis', async () => {

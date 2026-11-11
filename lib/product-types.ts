@@ -32,7 +32,7 @@ export type ProductUser = { userId: string; displayName: string; email: string; 
 export type Bootstrap = { user: ProductUser; sites: Site[]; providers: ProviderStatus[] };
 export type SiteState = { dataWindow?: { days: number; answersReturned: number; totalAnswers: number; truncated: boolean }; site: Site; personas: Persona[]; prompts: Prompt[]; competitors: Competitor[]; runs: Run[]; answers: Answer[]; documents: Document[]; tasks: Task[]; traffic: TrafficSummary; metrics: Metrics; providers: ProviderStatus[] };
 export type ApiError = { error: string; code?: string; details?: unknown };
-export const LIVE_MODEL = 'gpt-4.1-mini';
+export const LIVE_MODEL = 'gpt-6.1-terra';
 export const DEMO_MODELS = ['gpt-4.1-mini', 'demo-gemini', 'demo-perplexity'] as const;
 export const METRIC_DEFINITIONS = {
   coverage: 'Unique questions with at least one completed answer ÷ active tracked questions. Failed answers are excluded.',
