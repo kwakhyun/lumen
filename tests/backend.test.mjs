@@ -158,6 +158,11 @@ test('free-service consent is tenant bound and all generation routes use Gemini 
   const accepted=await eligibility.POST(new Request(origin+'/api/eligibility',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({adult:true,korea:true,business:true,understandsDataUse:true})}));assert.equal(accepted.status,200);
   assert.equal((await e.DB.prepare('SELECT COUNT(*) n FROM ai_usage_reservations').first()).n,before.n);
   globalThis.__lumenTestHeaders=new Headers({'oai-authenticated-user-id':'different','oai-authenticated-user-email':'different@example.test'});assert.equal((await(await eligibility.GET()).json()).eligible,false);
+  // Documents and assistant intentionally skip generation for empty samples.
+  // Supply observed evidence so this test still verifies their provider policy.
+  const fixtureRun=crypto.randomUUID(),fixturePrompt=crypto.randomUUID(),fixtureAt=new Date().toISOString();
+  await e.DB.prepare('INSERT INTO runs(id,site_id,mode,status,models,total,completed,created_at,completed_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(fixtureRun,id,'live','completed','["gemini-3.8-flash"]',1,1,fixtureAt,fixtureAt).run();
+  await e.DB.prepare('INSERT INTO answers(id,site_id,run_id,prompt_id,prompt_text,model,provider,mode,status,text,created_at,completed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),id,fixtureRun,fixturePrompt,'Which tools help brands?','gemini-3.8-flash','Gemini API','live','completed','Free Fixture is one tool to compare.',fixtureAt,fixtureAt).run();
   globalThis.fetch=async(url,init)=>{calls++;assert.match(url,/^https:\/\/generativelanguage.googleapis.com\//);const body=JSON.parse(init.body);return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:body.generationConfig.responseMimeType?JSON.stringify({prompts:[{text:'Which tools help brands?',topic:'Tools',intent:'comparison'}]}):'Fixture draft based on the supplied evidence.'}]}}]});};
   for(const [resource,body] of [['prompts/generate',{count:1}],['documents',{kind:'content',topic:'Brand visibility',format:'article'}],['assistant',{message:'Explain the metrics'}]]){
    const result=await call('POST',`sites/${id}/${resource}`,body);assert.ok([200,201].includes(result.response.status),JSON.stringify(result.data));

@@ -7,7 +7,9 @@ export const promptInput=z.object({text:z.string().trim().min(5).max(1000),topic
 export const competitorInput=z.object({name:z.string().trim().min(2).max(100),domain:domainInput}).strict();
 export const personaInput=z.object({name:z.string().trim().min(2).max(100),description:z.string().trim().max(1000).default(''),promptPrefix:z.string().trim().max(500).default('')}).strict();
 export const taskInput=z.object({title:z.string().trim().min(3).max(200),description:z.string().trim().max(2000).default(''),status:z.enum(['todo','in_progress','done']).default('todo'),priority:z.enum(['high','medium','low']).default('medium')}).strict();
-export const documentInput=z.object({kind:z.enum(['report','content']),topic:z.string().trim().min(3).max(500).optional(),format:z.enum(['article','comparison','faq','report','listicle','how-to']).default('article')}).strict();
+export const analysisScopeInput=z.object({period:z.enum(['7','30']).default('30'),model:z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,99}$/).default('all')}).strict().default({period:'30',model:'all'});
+export const documentInput=z.object({kind:z.enum(['report','content']),topic:z.string().trim().min(3).max(500).optional(),format:z.enum(['article','comparison','faq','report','listicle','how-to']).default('article'),scope:analysisScopeInput}).strict();
+export const assistantInput=z.object({message:z.string().trim().min(2).max(2000),scope:analysisScopeInput}).strict();
 export const documentPatch=z.object({title:z.string().trim().min(3).max(200).optional(),content:z.string().trim().min(1).max(60000).optional()}).strict();
 export const runInput=z.object({models:z.array(z.string().max(60)).min(1).max(3),mode:z.enum(['live','demo']),promptIds:z.array(z.string().uuid()).min(1).max(20).optional()}).strict();
 export function assertSameOrigin(request:Request){

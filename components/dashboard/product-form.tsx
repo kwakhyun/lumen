@@ -4,13 +4,15 @@ import { useState, type FormEvent } from "react";
 import { ArrowRight } from "lucide-react";
 import { normalizeDomain } from "@/lib/metrics";
 import type { Competitor, Persona, Prompt, Site, Task } from "@/lib/product-types";
+import type { DashboardScope } from "@/lib/dashboard-scope";
+import AnalysisScope from "./analysis-scope";
 import { intentNames } from "./prompt-evidence";
 import { Button, Field, Modal } from "./ui";
 
 export type FormKind = "site" | "prompt" | "competitor" | "content" | "report" | "task" | "persona";
 export type EditItem = Site | Prompt | Competitor | Task | Persona;
 
-export default function ProductForm({ kind, edit, busy, onClose, onSubmit, demo, defaults = {} }: { kind: FormKind; edit: EditItem | null; busy: boolean; onClose: () => void; onSubmit: (values: Record<string, unknown>) => Promise<void>; demo?: boolean; defaults?: Record<string, string> }) {
+export default function ProductForm({ kind, edit, busy, onClose, onSubmit, demo, analysisScope, answerCount = 0, defaults = {} }: { kind: FormKind; edit: EditItem | null; busy: boolean; onClose: () => void; onSubmit: (values: Record<string, unknown>) => Promise<void>; demo?: boolean; analysisScope?: DashboardScope; answerCount?: number; defaults?: Record<string, string> }) {
   const titles = { site: "브랜드 워크스페이스", prompt: "추적할 질문", competitor: "경쟁 브랜드", content: "콘텐츠 초안", report: "분석 리포트", task: "개선 작업", persona: "고객 페르소나" }; const initial = (key: string, fallback = "") => String((edit as unknown as Record<string, unknown>)?.[key] ?? defaults[key] ?? fallback); const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -36,7 +38,7 @@ export default function ProductForm({ kind, edit, busy, onClose, onSubmit, demo,
     if (firstIssue) { (element.elements.namedItem(firstIssue) as HTMLElement | null)?.focus(); return; }
     try { await onSubmit(values); } catch (cause) { setError((cause as Error).message); }
   }
-  return <Modal title={kind === "site" && !edit ? "브랜드 등록" : `${titles[kind]} ${edit ? "편집" : kind === "content" || kind === "report" ? "만들기" : "추가"}`} subtitle={kind === "site" ? "브랜드별로 질문과 답변을 모을 공간을 만듭니다. 이름과 웹사이트만 입력하면 됩니다." : kind === "prompt" ? "고객이 AI에 물을 만한 질문을 적어 주세요. 저장만으로 AI가 호출되지는 않습니다." : kind === "content" || kind === "report" ? demo ? "샘플 데이터로 예시 문서를 생성합니다." : "수집된 답변을 참고해 작성합니다. 생성에 잠시 시간이 걸릴 수 있어요." : undefined} onClose={onClose} dismissDisabled={busy}><form className="d-form" onSubmit={submit}><fieldset className="d-form-fields" disabled={busy}>
+  return <Modal title={kind === "site" && !edit ? "브랜드 등록" : `${titles[kind]} ${edit ? "편집" : kind === "content" || kind === "report" ? "만들기" : "추가"}`} subtitle={kind === "site" ? "브랜드별로 질문과 답변을 모을 공간을 만듭니다. 이름과 웹사이트만 입력하면 됩니다." : kind === "prompt" ? "고객이 AI에 물을 만한 질문을 적어 주세요. 저장만으로 AI가 호출되지는 않습니다." : kind === "content" || kind === "report" ? demo ? "샘플 데이터로 예시 문서를 생성합니다." : "수집된 답변을 참고해 작성합니다. 생성에 잠시 시간이 걸릴 수 있어요." : undefined} onClose={onClose} dismissDisabled={busy}><form className="d-form" onSubmit={submit}>{(kind === "report" || kind === "content") && analysisScope && <AnalysisScope scope={analysisScope} answerCount={answerCount} />}<fieldset className="d-form-fields" disabled={busy}>
     {!demo && <p className="d-field-hint">공개된 업무 정보만 입력하세요. 개인정보와 민감정보, 기밀정보는 입력하지 마세요. AI 기능을 사용할 때 관련 입력이 무료 Gemini API로 전달될 수 있습니다.</p>}
     {kind === "site" && <>
       <Field label="브랜드 이름 (필수)" hint={fieldErrors.name}><input data-autofocus name="name" required minLength={2} maxLength={100} placeholder="예: 루멘" defaultValue={initial("name")} aria-invalid={Boolean(fieldErrors.name)} /></Field>

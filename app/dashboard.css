@@ -364,6 +364,11 @@
 .d-model-stat,.d-stat-pair { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 0; border-top:1px solid var(--lumen-border); font-size:14px; color:var(--lumen-muted); }
 .d-model-stat strong,.d-stat-pair strong { color:var(--lumen-ink); font-weight:550; }
 .d-assistant { min-height:560px; display:flex; flex-direction:column; max-width:1000px; margin:0 auto; }
+.d-analysis-scope { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 16px; margin:0 0 20px; padding:16px 20px; background:var(--lumen-accent-soft); border-radius:10px; font-size:14px; line-height:1.7; overflow-wrap:anywhere; }
+.d-analysis-scope strong { font-weight:600; }
+.d-analysis-scope p { flex-basis:100%; margin:0; color:var(--lumen-secondary); }
+.d-message-scope { margin-bottom:8px; color:var(--lumen-muted); font-size:13px; line-height:1.7; }
+.d-assistant-current-scope { margin:0 24px 12px; font-size:13px; line-height:1.7; color:var(--lumen-muted); overflow-wrap:anywhere; }
 .d-assistant-start { display:flex; flex-direction:column; align-items:center; text-align:center; padding:54px 32px 30px; }
 .d-assistant-orb { display:grid; place-items:center; width:64px; height:64px; border-radius:20px; background:var(--lumen-accent-soft); color:var(--lumen-accent); margin-bottom:26px; }
 .d-assistant-start h2 { font-size:26px; font-weight:600; line-height:1.5; letter-spacing:-1px; margin-bottom:14px; }
@@ -377,7 +382,7 @@
 .d-message-assistant { color:var(--lumen-secondary); }
 .d-message-assistant>strong { display:block; font-size:13px; color:var(--lumen-accent); margin-bottom:12px; }
 .d-assistant-input { display:flex; align-items:flex-end; gap:14px; border:1px solid var(--lumen-border-strong); border-radius:12px; margin:0 24px 24px; padding:16px; }
-.d-assistant-input textarea { flex:1; min-height:48px; max-height:160px; background:transparent; border:0; outline:0; resize:none; font-size:15px; line-height:1.8; }
+.d-assistant-input textarea { flex:1; min-width:0; min-height:48px; max-height:160px; background:transparent; border:0; outline:0; resize:none; font-size:15px; line-height:1.8; }
 .d-assistant-input textarea::placeholder { color:var(--lumen-muted); }
 
 /* Connections, usage, and operations */
