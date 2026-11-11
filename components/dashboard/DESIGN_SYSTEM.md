@@ -50,3 +50,20 @@ Use 해요체 sparingly for brief empty states and polite 하세요/합니다 fo
 ## First answer onboarding
 
 Use the persisted workspace state to guide brand registration, manual question creation and explicit first collection. Before a completed collection exists, show the current step instead of empty analytics. Optional brand and question settings stay in native details disclosures; their inputs retain default values. Starting collection always passes through consent and a question/model/allowance review. Manual setup never calls a provider. Preserve failed and historical results rather than treating them as zero or silently retrying. Busy dialogs cannot close; collapsed controls do not enter the keyboard focus loop.
+
+## Evidence to action
+
+Dashboard summaries, question rows, model comparisons, source tables, answer details and CSV exports share the selected period/model sample. Use the URL scope when navigating so the workspace, period and model stay aligned. The server's separate latest-run metrics contract remains unchanged. Repeated collections contribute repeated observations; show the denominator and do not imply market-wide visibility.
+
+Prioritized questions use observed competitor-only or own-brand-missing answers, followed by questions without completed evidence. Failures and pending answers are never negative brand observations. Creating a task preserves the question, scope, counts, answer references and a link back to the filtered evidence; it does not call a model. Domain citation rates use eligible completed answers as their denominator. Trend charts use elapsed calendar time and never fill missing dates with zero.
+
+
+## Responsive question review
+
+Keep the questions page heading compact and offer one question-add action. Collection setup belongs above the results, while optional filters, metric explanations and AI question suggestions use labelled disclosures. A prompt-list container at 760px or narrower displays cards with the question, evidence, denominator and both reading/task actions; tracking, pinning, editing and deletion stay in the card's management disclosure. Hidden desktop tables must not remain keyboard targets.
+
+The top navigation separates analysis work from collection and operations while preserving existing routes and names. Mobile navigation preserves those groups, traps keyboard focus while open, and restores focus to its trigger. Opening a dialog closes navigation, and the global search shortcut does not stack a second dialog.
+
+Answer details default to one answer with explicit reading/comparison controls. Previous/next question navigation follows the filtered, sorted list across pagination. Keep the modal mounted when changing questions so closing returns to the original list control; reset answer selection for the new question and handle new answers arriving during collection. At narrow widths comparisons stack vertically.
+
+Overview metrics group the rate and denominator with period, model and the latest completed answer timestamp for that exact cohort. State the timezone and distinguish missing timestamps from no completed answers. Do not invent freshness warnings from age alone. Preserve synthetic-data and API/search distinctions.

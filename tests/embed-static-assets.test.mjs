@@ -117,13 +117,13 @@ export default { fetch(request, env, ctx) {
   return Response.json({ url: request.url, header: request.headers.get('x-fixture'), env: env.fixture, ctx: ctx.fixture });
 } };\n`);
   await prepareEmbeddedAssets(root);
-  const module = await import(pathToFileURL(join(root, 'dist/server/index.js')).href);
-  assert.equal(module.named, 7);
-  const asset = await module.default.fetch(new Request('https://fixture.example/robots.txt'), {}, {});
+  const workerModule = await import(pathToFileURL(join(root, 'dist/server/index.js')).href);
+  assert.equal(workerModule.named, 7);
+  const asset = await workerModule.default.fetch(new Request('https://fixture.example/robots.txt'), {}, {});
   assert.equal(asset.status, 200);
   assert.equal(asset.headers.get('X-Content-Type-Options'), 'nosniff');
   assert.equal(await asset.text(), 'User-agent: *\nAllow: /\n');
-  const response = await module.default.fetch(new Request('https://fixture.example/dashboard?tab=security', { headers: { 'x-fixture': 'request-preserved' } }), { fixture: 'env-preserved' }, { fixture: 'ctx-preserved' });
+  const response = await workerModule.default.fetch(new Request('https://fixture.example/dashboard?tab=security', { headers: { 'x-fixture': 'request-preserved' } }), { fixture: 'env-preserved' }, { fixture: 'ctx-preserved' });
   assert.deepEqual(await response.json(), {
     url: 'https://fixture.example/dashboard?tab=security', header: 'request-preserved', env: 'env-preserved', ctx: 'ctx-preserved',
   });

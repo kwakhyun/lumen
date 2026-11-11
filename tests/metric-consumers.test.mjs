@@ -52,10 +52,30 @@ test('prompt evidence uses the tracked domain rather than a colliding display na
   assert.equal(ownMention({ mentions: [{ name: 'Other', domain: 'WWW.ACME.COM.', mentioned: true }] }, site).mentioned, true);
 });
 
-test('latest failure does not masquerade as earlier success while historical trend remains visible', () => {
+test('period summary retains historical completed evidence when a later collection fails', () => {
   const latest = answer('failure', 'gemini-3.8-flash', { status: 'failed' });
-  const result = html([latest], [answer('past', 'gpt-4.1-mini'), latest]);
-  assert.match(result, /현재 비교 표본: 완료 0개, 실패 1개/);
-  assert.match(result, /이전 답변은 추이와 원문에 남아 있어요/);
+  const past = answer('past', 'gpt-4.1-mini', { mentions: [{ domain: 'acme.com', mentioned: true, firstPosition: 0, rank: 1 }] });
+  const result = html([past, latest]);
+  assert.match(result, /현재 비교 표본: 완료 1개, 실패 1개/);
+  assert.match(result, /브랜드 언급 <b>1개<\/b>.*완료 답변 <b>1개<\/b>/);
   assert.match(result, /차트 데이터 보기/);
+});
+
+test('overview shows evidence counts and review actions for registered competitor-only answers', () => {
+  const currentSite = { ...site, id: 'site-1' };
+  const currentPrompts = [{ ...prompts[0], siteId: currentSite.id }];
+  const rivals = [{ name: 'Rival', domain: 'rival.com' }];
+  const rows = [answer('gap', 'gemini-3.8-flash', { siteId: currentSite.id, mentions: [{ domain: 'rival.com', mentioned: true }] })];
+  const metrics = computeMetrics(currentSite, rivals, rows, currentPrompts);
+  const state = { site: currentSite, prompts: currentPrompts, competitors: rivals, answers: rows, tasks: [], metrics };
+  const result = renderToStaticMarkup(React.createElement(Overview, {
+    state, metrics, answers: rows, filters: null, navigate() {}, openPrompt() {}, openForm() {}, onCreateTask() {},
+    sectionHref: id => `/dashboard/${id}?period=7&model=gemini-3.8-flash`,
+  }));
+  assert.match(result, /우선 확인할 질문/);
+  assert.match(result, /경쟁사만 언급된 답변/);
+  assert.match(result, /1 \/ 1개/);
+  assert.match(result, /해당 답변에 등장한 경쟁사: Rival/);
+  assert.match(result, /개선 작업 추가/);
+  assert.match(result, /href="\/dashboard\/actions\?period=7&amp;model=gemini-3.8-flash"/);
 });

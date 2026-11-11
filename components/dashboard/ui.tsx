@@ -80,20 +80,36 @@ export function TrendChart({ data, label = "가시성", suffix = "%" }: { data: 
     return () => { cancelAnimationFrame(frame); observer.disconnect(); };
   }, []);
   const height = 244, pad = 12, floor = 206;
-  const max = suffix === "%" ? 100 : Math.max(4, ...data.map(d => d.value));
-  const points = data.map((d, i) => ({ ...d, x: 48 + (i / Math.max(data.length - 1, 1)) * (width - 66), y: floor - d.value / max * (floor - pad) }));
+  // Time, rather than array order, determines distance. Missing days stay unobserved.
+  const datedData = data.map(point => ({ ...point, timestamp: Date.parse(point.date) }))
+    .filter(point => Number.isFinite(point.timestamp) && Number.isFinite(point.value))
+    .sort((a, b) => a.timestamp - b.timestamp);
+  const max = suffix === "%" ? 100 : Math.max(4, ...datedData.map(d => d.value));
+  const firstTime = datedData[0]?.timestamp ?? 0;
+  const span = (datedData.at(-1)?.timestamp ?? firstTime) - firstTime;
+  const points = datedData.map(d => ({ ...d, x: 48 + (span ? (d.timestamp - firstTime) / span : 0.5) * (width - 66), y: floor - d.value / max * (floor - pad) }));
   const line = points.map((p, i) => `${i ? "L" : "M"}${p.x},${p.y}`).join(" ");
-  const labelCount = Math.min(data.length, width < 480 ? 3 : 6);
-  const labelIndices = new Set(Array.from({ length: labelCount }, (_, i) => Math.round(i * (data.length - 1) / Math.max(1, labelCount - 1))));
+  const labelIndices = new Set<number>();
+  const labelGap = width < 480 ? 85 : 110;
+  let previousLabelX = -Infinity;
+  points.forEach((point, index) => {
+    if (index > 0 && point.timestamp === points[index - 1].timestamp) return;
+    const isLastDate = point.timestamp === points.at(-1)?.timestamp;
+    if (index === 0 || isLastDate || (point.x - previousLabelX >= labelGap && points.at(-1)!.x - point.x >= labelGap)) {
+      labelIndices.add(index);
+      previousLabelX = point.x;
+    }
+  });
   const axisLabel = (value: number) => suffix === "%" ? `${Math.round(value)}%` : new Intl.NumberFormat("ko-KR", { notation: "compact", maximumFractionDigits: 1 }).format(value);
   return <div className="d-chart">
     <div className="d-chart-plot" ref={plotRef}>
-      <svg viewBox={`0 0 ${width} ${height}`} height={height} role="img" aria-label={`${label} 추이, ${data.length}일`}>
+      <svg viewBox={`0 0 ${width} ${height}`} height={height} role="img" aria-label={`${label} 추이, ${points.length}개 관측값`}>
+        <desc>가로 간격은 실제 관측 날짜의 간격입니다. 관측하지 않은 날짜는 0으로 채우지 않습니다.</desc>
         <defs><linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--lumen-accent)" stopOpacity=".18" /><stop offset="100%" stopColor="var(--lumen-accent)" stopOpacity=".01" /></linearGradient></defs>
         {[0, .25, .5, .75, 1].map(p => <g key={p}><line x1="48" x2={width - 18} y1={floor - p * (floor - pad)} y2={floor - p * (floor - pad)} stroke="var(--lumen-border)" strokeDasharray="3 4" /><text x="0" y={floor - p * (floor - pad) + 4} fill="var(--lumen-muted)" fontSize="12">{axisLabel(p * max)}</text></g>)}
-        {points.length > 0 && <><path d={`${line} L${points.at(-1)!.x},${floor} L${points[0].x},${floor} Z`} fill={`url(#${gradientId})`} /><path d={line} fill="none" stroke="var(--lumen-accent)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />{points.map((p, i) => <g key={i}><circle cx={p.x} cy={p.y} r="3" fill="var(--lumen-accent)"><title>{`${dateLabel(p.date)}: ${numberLabel(p.value)}${suffix}`}</title></circle>{labelIndices.has(i) && <text x={p.x} y="236" fill="var(--lumen-muted)" fontSize="12" textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}>{dateLabel(p.date)}</text>}</g>)}</>}
+        {points.length > 0 && <>{span > 0 && <><path d={`${line} L${points.at(-1)!.x},${floor} L${points[0].x},${floor} Z`} fill={`url(#${gradientId})`} /><path d={line} fill="none" stroke="var(--lumen-accent)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" /></>}{points.map((p, i) => <g key={i}><circle cx={p.x} cy={p.y} r="3" fill="var(--lumen-accent)"><title>{`${dateLabel(p.date)}: ${numberLabel(p.value)}${suffix}`}</title></circle>{labelIndices.has(i) && <text x={p.x} y="236" fill="var(--lumen-muted)" fontSize="12" textAnchor={!span ? "middle" : i === 0 ? "start" : p.timestamp === points.at(-1)!.timestamp ? "end" : "middle"}>{dateLabel(p.date)}</text>}</g>)}</>}
       </svg>
     </div>
-    <details className="d-chart-data"><summary>차트 데이터 보기</summary><table className="d-table"><thead><tr><th>날짜</th><th>{label}</th></tr></thead><tbody>{data.map((point, i) => <tr key={`${point.date}-${i}`}><td>{dateLabel(point.date)}</td><td>{numberLabel(point.value)}{suffix}</td></tr>)}</tbody></table></details>
+    <details className="d-chart-data"><summary>차트 데이터 보기</summary><table className="d-table"><thead><tr><th>날짜</th><th>{label}</th></tr></thead><tbody>{points.map((point, i) => <tr key={`${point.date}-${i}`}><td>{dateLabel(point.date)}</td><td>{numberLabel(point.value)}{suffix}</td></tr>)}</tbody></table></details>
   </div>;
 }

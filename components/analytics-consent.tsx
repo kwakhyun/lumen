@@ -1,14 +1,16 @@
 'use client';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { analyticsAllowed, CONSENT_KEY, createLandingAnalytics, parseConsent, serializeConsent } from '@/lib/landing-analytics';
 import type { AnalyticsConsent as Consent } from '@/lib/landing-analytics';
 import './analytics-consent.css';
+const subscribeEnvironment = () => () => {};
+const environmentEligible = () => analyticsAllowed(window.location, process.env.NODE_ENV === 'production');
 export function AnalyticsConsent() {
-  const [open, setOpen] = useState(false), [choice, setChoice] = useState<Consent | null>(null), [eligible, setEligible] = useState(false), [storageUnavailable, setStorageUnavailable] = useState(false);
+  const [open, setOpen] = useState(false), [choice, setChoice] = useState<Consent | null>(null), [storageUnavailable, setStorageUnavailable] = useState(false);
+  const eligible = useSyncExternalStore(subscribeEnvironment, environmentEligible, () => false);
   const controller = useRef<ReturnType<typeof createLandingAnalytics> | null>(null), trigger = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => {
     const runtime = createLandingAnalytics(window, document, process.env.NODE_ENV === 'production'); controller.current = runtime;
-    setEligible(analyticsAllowed(window.location, process.env.NODE_ENV === 'production'));
     const sync = () => { let saved: Consent | null = null; try { saved = parseConsent(window.localStorage.getItem(CONSENT_KEY)); } catch { setStorageUnavailable(true); } setChoice(saved); setOpen(saved === null); runtime.apply(saved); };
     sync();
     const changed = (event: StorageEvent) => { if (event.key === CONSENT_KEY || event.key === null) sync(); };

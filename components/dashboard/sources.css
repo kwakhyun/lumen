@@ -1,0 +1,29 @@
+.d-source-method { display:flex; align-items:flex-start; gap:10px; padding:0 28px 22px; color:var(--lumen-muted); font-size:13px; line-height:1.7; }
+.d-source-method>svg { flex-shrink:0; margin-top:3px; }
+.d-source-method p { margin:0; }
+.d-source-method strong { color:var(--lumen-secondary); font-weight:600; }
+.d-sources .d-source-name { display:flex; align-items:center; gap:10px; min-width:180px; }
+.d-source-name>svg { flex-shrink:0; color:var(--lumen-muted); }
+.d-source-selected { background:var(--lumen-accent-soft); }
+.d-source-rate { display:flex; flex-direction:column; gap:8px; min-width:110px; }
+.d-source-rate strong { font-weight:600; font-variant-numeric:tabular-nums; }
+.d-source-rate .d-progress-track { width:110px; }
+.d-source-evidence-list { padding:0 28px 26px; }
+.d-source-evidence { padding:22px 0; border-top:1px solid var(--lumen-border); }
+.d-source-evidence:last-child { padding-bottom:0; }
+.d-source-evidence-meta { display:flex; align-items:center; flex-wrap:wrap; gap:10px; color:var(--lumen-muted); font-size:13px; }
+.d-source-evidence h3 { margin:12px 0; font-size:16px; line-height:1.6; font-weight:600; overflow-wrap:anywhere; }
+.d-source-evidence ul { margin:0 0 12px; padding:0; list-style:none; }
+.d-source-evidence li+li { margin-top:8px; }
+.d-source-evidence li a { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:13px 16px; border:1px solid var(--lumen-border); border-radius:var(--lumen-radius-sm); background:var(--lumen-canvas); color:var(--lumen-secondary); text-decoration:none; }
+.d-source-evidence li a:hover { border-color:var(--lumen-border-strong); color:var(--lumen-accent); }
+.d-source-evidence li a>svg { flex-shrink:0; }
+.d-source-evidence li a>span { min-width:0; }
+.d-source-evidence li strong { display:block; font-size:14px; font-weight:500; overflow-wrap:anywhere; }
+.d-source-evidence li small { display:block; margin-top:3px; color:var(--lumen-muted); overflow-wrap:anywhere; font-size:12px; }
+.d-sources>.d-stack:empty,.d-sources>div:empty { display:none; }
+@media (max-width:600px) {
+  .d-source-method { padding:0 18px 20px; }
+  .d-source-evidence-list { padding:0 18px 22px; }
+  .d-source-evidence li a { padding:12px; }
+}

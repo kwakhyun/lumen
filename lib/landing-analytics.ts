@@ -21,6 +21,8 @@ export function createLandingAnalytics(window: Window, document: Document, produ
   const disableKey = `ga-disable-${ANALYTICS_ID}` as const;
   let initialized = false, pageViewQueued = false, script: HTMLScriptElement | null = null;
   target[disableKey] = true;
+  // gtag's command queue uses an Arguments object; preserve that integration contract.
+  // eslint-disable-next-line prefer-rest-params
   function tag(...args: unknown[]) { void args; target.dataLayer!.push(arguments); }
   function removeAnalyticsCookies() {
     for (const item of document.cookie.split(';')) { const name = item.split('=')[0].trim(); if (/^lumen_ga(?:_|$)/.test(name)) document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax; Secure`; }

@@ -18,7 +18,7 @@ registerHooks({
     return { format: 'module', shortCircuit: true, source: ts.transpileModule(readFileSync(fileURLToPath(url), 'utf8'), { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText };
   },
 });
-const { Field } = await import(uiUrl);
+const { Field, TrendChart } = await import(uiUrl);
 const render = (...fields) => renderToStaticMarkup(React.createElement(React.Fragment, null, ...fields));
 const field = (label, props, control = 'input') => React.createElement(Field, { label, ...props }, React.createElement(control, { name: 'value', ...(props?.controlProps || {}) }));
 
@@ -52,4 +52,57 @@ test('Fields have distinct stable associations and never reference absent hints'
   assert.doesNotMatch(html, /aria-describedby|<small/);
   const externalOnly = render(field('값', { controlProps: { 'aria-describedby': 'server-error' } }));
   assert.match(externalOnly, /aria-describedby="server-error"/);
+});
+
+const chart = data => render(React.createElement(TrendChart, { data, label: '브랜드 언급률' }));
+const pointXs = html => [...html.matchAll(/<circle cx="([^"]+)"/g)].map(match => Number(match[1]));
+
+test('TrendChart preserves elapsed time between irregular observations without inventing zero days', () => {
+  const html = chart([
+    { date: '2026-11-01', value: 10 },
+    { date: '2026-11-02', value: 20 },
+    { date: '2026-11-20', value: 80 },
+  ]);
+  const [first, next, last] = pointXs(html);
+  assert.equal(pointXs(html).length, 3);
+  assert.ok(Math.abs((next - first) / (last - first) - 1 / 19) < 1e-10);
+  assert.match(html, /3개 관측값/);
+  assert.match(html, /관측하지 않은 날짜는 0으로 채우지 않습니다/);
+  assert.equal((html.match(/<text[^>]+y="236"/g) || []).length, 2, 'nearby date labels do not overlap');
+});
+
+test('TrendChart orders the plot and its accessible data chronologically without mutating its input', () => {
+  const data = [
+    { date: '2026-11-20', value: 80 },
+    { date: '2026-11-01', value: 10 },
+    { date: '2026-11-02', value: 20 },
+  ];
+  const original = structuredClone(data);
+  const html = chart(data);
+  assert.deepEqual(data, original);
+  assert.deepEqual(pointXs(html), [...pointXs(html)].sort((a, b) => a - b));
+  const values = [...html.matchAll(/<td>(\d+)%<\/td>/g)].map(match => Number(match[1]));
+  assert.deepEqual(values, [10, 20, 80]);
+});
+
+test('TrendChart centers one observed date and does not imply a trend or merge repeated observations', () => {
+  for (const values of [[35], [35, 70]]) {
+    const html = chart(values.map(value => ({ date: '2026-11-11', value })));
+    const xs = pointXs(html);
+    assert.equal(xs.length, values.length);
+    assert.ok(xs.every(x => x === (48 + 742) / 2));
+    assert.equal((html.match(/<text[^>]+y="236"/g) || []).length, 1);
+    assert.match(html, /y="236"[^>]*text-anchor="middle"/);
+    assert.doesNotMatch(html, /<path/);
+    assert.deepEqual([...html.matchAll(/<td>(\d+)%<\/td>/g)].map(match => Number(match[1])), values);
+  }
+});
+
+test('TrendChart leaves an empty series empty and excludes invalid coordinates', () => {
+  for (const data of [[], [{ date: 'invalid', value: 10 }, { date: '2026-11-11', value: NaN }]]) {
+    const html = chart(data);
+    assert.equal(pointXs(html).length, 0);
+    assert.match(html, /0개 관측값/);
+    assert.doesNotMatch(html, /NaN|Infinity|Invalid Date|<path/);
+  }
 });

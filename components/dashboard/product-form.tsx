@@ -10,8 +10,8 @@ import { Button, Field, Modal } from "./ui";
 export type FormKind = "site" | "prompt" | "competitor" | "content" | "report" | "task" | "persona";
 export type EditItem = Site | Prompt | Competitor | Task | Persona;
 
-export default function ProductForm({ kind, edit, busy, onClose, onSubmit, demo }: { kind: FormKind; edit: EditItem | null; busy: boolean; onClose: () => void; onSubmit: (values: Record<string, unknown>) => Promise<void>; demo?: boolean }) {
-  const titles = { site: "브랜드 워크스페이스", prompt: "추적할 질문", competitor: "경쟁 브랜드", content: "콘텐츠 초안", report: "분석 리포트", task: "개선 작업", persona: "고객 페르소나" }; const initial = (key: string, fallback = "") => String((edit as unknown as Record<string, unknown>)?.[key] ?? fallback); const [error, setError] = useState("");
+export default function ProductForm({ kind, edit, busy, onClose, onSubmit, demo, defaults = {} }: { kind: FormKind; edit: EditItem | null; busy: boolean; onClose: () => void; onSubmit: (values: Record<string, unknown>) => Promise<void>; demo?: boolean; defaults?: Record<string, string> }) {
+  const titles = { site: "브랜드 워크스페이스", prompt: "추적할 질문", competitor: "경쟁 브랜드", content: "콘텐츠 초안", report: "분석 리포트", task: "개선 작업", persona: "고객 페르소나" }; const initial = (key: string, fallback = "") => String((edit as unknown as Record<string, unknown>)?.[key] ?? defaults[key] ?? fallback); const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

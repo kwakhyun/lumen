@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local previews, build output, and runtime state are not authored source.
+    "dist/**",
+    "work/**",
+    "outputs/**",
+    ".sites-runtime/**",
+    ".wrangler/**",
   ]),
   {
     files: ["components/ui/**/*.{ts,tsx}", "hooks/use-mobile.ts"],

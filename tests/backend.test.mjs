@@ -93,6 +93,11 @@ test('a real response fixture persists original text and annotation provenance',
 test('demo seed is persistent, synthetic and isolated from live runs',async()=>{
   const r=await call('POST','demo');assert.equal(r.response.status,201);const id=r.data.site.id;
   const state=await call('GET',`sites/${id}/state`);assert.equal(state.response.status,200);assert.equal(state.data.answers.length,252);assert.ok(state.data.answers.every(a=>a.mode==='demo'&&a.providerResponseId===null));assert.ok(state.data.answers.flatMap(a=>a.citations).every(c=>c.provenance==='synthetic'));assert.equal(state.data.personas.length,2);
+  assert.equal(state.data.site.name,'Northstar');assert.equal(state.data.site.domain,'northstar.example');
+  assert.ok(state.data.prompts.every(prompt=>/[가-힣]/.test(prompt.text)&&/[가-힣]/.test(prompt.topic)));
+  assert.ok(state.data.answers.every(answer=>answer.text.includes('합성 답변')&&answer.text.includes(answer.promptText)&&answer.provider==='Synthetic demo'));
+  assert.ok(state.data.answers.flatMap(answer=>answer.citations).every(citation=>/[가-힣]/.test(citation.title)&&citation.title.includes('합성 예시')&&new URL(citation.url).hostname===citation.domain));
+  const report=state.data.documents.find(document=>document.kind==='report');assert.match(report.content,/Gemini API/);assert.doesNotMatch(report.content,/연결된 OpenAI API/);
   const second=await call('POST','demo');assert.equal(second.data.site.id,id);
   const mixed=await call('POST',`sites/${id}/runs`,{mode:'live',models:['gpt-4.1-mini']});assert.equal(mixed.response.status,400);assert.equal(mixed.data.code,'mode_mismatch');
 });

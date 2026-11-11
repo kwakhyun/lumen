@@ -10,7 +10,7 @@ export default function MetricGuide({ state, metrics = state.metrics }: { state:
       <tr><td>브랜드 언급 질문 비율</td><td>브랜드를 언급한 완료 답변이 하나 이상 있는 활성 질문 수 / 전체 활성 질문 수</td><td>한 질문에 여러 모델이 답해도 질문은 한 번만 세요. 아직 수집하지 않은 질문도 분모에 남아요.</td></tr>
     </tbody></table></div>
     <p>지표 버전 {metrics.metricsVersion}. 현재 비율의 표본은 완료 {metrics.answerCount}개예요. 인용은 이 가운데 {metrics.citationEligibleAnswerCount}개를 대상으로 계산해요. 실제 응답과 합성 샘플은 섞지 않아요. 출처 목록도 같은 인용 기준을 사용해요. 본문에 적힌 URL만으로는 인용으로 인정하지 않아요.</p>
-    <p>요약과 표는 선택한 기간 안에서 가장 최근에 종료된 수집을 비교하고, 추이 차트는 날짜별 완료 답변을 모두 집계해요. 날짜는 UTC, 수집 시각은 한국 시간(KST) 기준이에요. 실패를 제외하면 결과가 좋아 보일 수 있으므로 실패 수도 함께 확인하세요.</p>
+    <p>요약과 표, 답변 원문은 선택한 기간과 모델의 전체 답변을 사용해요. 추이 차트는 같은 표본을 날짜별로 집계해요. 날짜는 UTC, 수집 시각은 한국 시간(KST) 기준이에요. 실패를 제외하면 결과가 좋아 보일 수 있으므로 실패 수도 함께 확인하세요.</p>
     <p>대시보드는 현재 등록된 브랜드를 기준으로 계산해요. 실험은 저장 당시의 브랜드 정보, 질문 문구와 모델을 유지하고 양쪽 모두 성공한 답변만 비교해요. 따라서 두 화면의 계산에 포함되는 답변 수는 다를 수 있어요.</p>
     <p>현재 조회 범위: 최근 {state.dataWindow?.days ?? 30}일, 답변 {state.dataWindow?.answersReturned ?? state.answers.length}개{state.dataWindow?.truncated ? ` / 전체 ${state.dataWindow.totalAnswers}개. 조회 한도를 넘어 일부 답변은 표시되지 않아요.` : '. 필터에 따라 비교 표본은 달라져요.'}</p>
   </details>;

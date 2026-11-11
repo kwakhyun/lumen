@@ -107,7 +107,7 @@ export async function prepareEmbeddedAssets(root) {
     inventory.push({ pathname: `/${name}`, contentType, size: bytes.length, sha256: digest, etag, immutable });
   }
   if (!rows.length || foundPublic.size !== publicNames.size) throw new Error('Build is missing expected public assets.');
-  const module = `// Generated from reviewed public build output. Do not edit.\nexport default new Map(${JSON.stringify(rows)});\n`;
+  const assetModule = `// Generated from reviewed public build output. Do not edit.\nexport default new Map(${JSON.stringify(rows)});\n`;
   const wrapper = await readFile(join(root, 'build/static-worker.mjs'));
   const runtime = await readFile(join(root, 'build/static-asset-response.mjs'));
   const wranglerPath = join(server, 'wrangler.json');
@@ -116,9 +116,9 @@ export async function prepareEmbeddedAssets(root) {
   delete wrangler.assets;
   const modules = {
     'index.js': hash(wrapper), 'lumen-app.js': hash(appBytes),
-    'lumen-static-assets.js': hash(module), 'lumen-static-response.js': hash(runtime),
+    'lumen-static-assets.js': hash(assetModule), 'lumen-static-response.js': hash(runtime),
   };
-  await writeFile(join(server, 'lumen-static-assets.js'), module);
+  await writeFile(join(server, 'lumen-static-assets.js'), assetModule);
   await writeFile(join(server, 'lumen-static-response.js'), runtime);
   await rename(index, join(server, 'lumen-app.js'));
   await writeFile(index, wrapper);
