@@ -1,5 +1,6 @@
 "use client";
 
+import SuggestField from "../suggest-field";
 import { useMemo, useState } from "react";
 import { Activity, ArrowRight, ArrowUp, CalendarDays, Check, Compass, Link2, RefreshCw, Sparkles, Target, Users, X } from "lucide-react";
 import type { DashboardScope } from "@/lib/dashboard-scope";
@@ -49,7 +50,7 @@ export default function Home({ state, metrics, scope, clock, controller, readOnl
       <h1>{state.site.name}의 AI 가시성, 무엇부터 볼까요?</h1>
       <p>질문하거나 에이전트에게 맡기세요. 결과에는 근거가 된 답변과 수치가 함께 남아요.</p>
       <form className="d-composer" onSubmit={event => { event.preventDefault(); send(); }}>
-        <textarea value={text} onChange={event => setText(event.target.value)} maxLength={2000} placeholder="예: 경쟁사보다 덜 언급되는 질문이 뭐야?" aria-label="Lumen에게 질문하기" onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); } }} />
+        <SuggestField as="textarea" siteId={state.site.id} field="ask" value={text} onValueChange={setText} maxLength={2000} placeholder="예: 경쟁사보다 덜 언급되는 질문이 뭐야?" aria-label="Lumen에게 질문하기" onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); } }} />
         <div className="d-composer-bar"><small>최근 {scope.period}일 · 완료 답변 {metrics.answerCount}개 기준</small><button type="submit" className="d-composer-send" disabled={text.trim().length < 2} aria-label="질문 보내기"><ArrowUp size={16} strokeWidth={2.4} /></button></div>
       </form>
       <div className="d-chip-row">

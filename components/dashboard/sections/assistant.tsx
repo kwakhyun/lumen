@@ -1,5 +1,6 @@
 "use client";
 
+import SuggestField from "../suggest-field";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, ExternalLink, Loader2, Send, Sparkles } from "lucide-react";
 import type { DashboardScope } from "@/lib/dashboard-scope";
@@ -69,7 +70,7 @@ export default function Assistant({ siteId, siteName, demo, scope, requestAI, se
     {error && <div className="d-error" role="alert" style={{ margin: "0 24px 15px" }}>{error}</div>}
     {messages.length > 0 && <p className="d-assistant-current-scope">다음 질문: {analysisScopeLabel(scope)}. 이전 답변은 작성 당시 조건을 유지해요.</p>}
     <form className="d-assistant-input" onSubmit={event => { event.preventDefault(); send(input); }}>
-      <textarea value={input} onChange={event => setInput(event.target.value)} placeholder="공개된 브랜드 정보로 질문하세요. 개인정보와 기밀정보는 입력하지 마세요." aria-label="어시스턴트 메시지" onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(input); } }} />
+      <SuggestField as="textarea" siteId={siteId} field="ask" value={input} onValueChange={setInput} placeholder="공개된 브랜드 정보로 질문하세요. 개인정보와 기밀정보는 입력하지 마세요." aria-label="어시스턴트 메시지" onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(input); } }} />
       <Button type="submit" variant="primary" busy={Boolean(pendingScope)} disabled={!input.trim()} aria-label="메시지 보내기"><Send size={15} /></Button>
     </form>
   </Panel>;
