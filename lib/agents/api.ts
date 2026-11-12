@@ -21,7 +21,13 @@ type Actor = { userId: string; guest?: boolean };
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' } });
 const missing = (): never => { throw new ProductError(404, 'Record not found.', 'not_found'); };
 /** A deployment that has not applied the agent migration yet still runs agents; it just cannot keep history. */
-const storageMissing = (error: unknown) => error instanceof Error && /no such table/i.test(error.message);
+/** True when agent_runs has not been migrated yet. Drizzle wraps the driver error, so the cause chain is checked too. */
+export function storageMissing(error: unknown): boolean {
+  for (let current = error, depth = 0; current instanceof Error && depth < 5; current = current.cause, depth += 1) {
+    if (/no such table/i.test(current.message)) return true;
+  }
+  return false;
+}
 
 function toRun(row: typeof agentRuns.$inferSelect): AgentRun {
   const parse = <T,>(value: string, fallback: T): T => { try { return JSON.parse(value) as T; } catch { return fallback; } };
