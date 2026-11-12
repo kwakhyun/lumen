@@ -27,6 +27,6 @@ export async function readJson<S extends z.ZodTypeAny>(request:Request,schema:S,
   const combined=new Uint8Array(length);let offset=0;for(const c of chunks){combined.set(c,offset);offset+=c.length;}
   let data:unknown;try{data=JSON.parse(new TextDecoder().decode(combined));}catch{throw new ProductError(400,'Invalid JSON body.','invalid_json');}
   const pending:unknown[]=[data];
-  while(pending.length){const value=pending.pop();if(typeof value==='string'&&value.includes('\0'))throw new ProductError(400,'입력에 사용할 수 없는 NUL 문자가 포함되어 있습니다. 해당 문자를 제거해 주세요.','invalid_input');if(value&&typeof value==='object')for(const [key,child]of Object.entries(value)){pending.push(key,child);}}
+  while(pending.length){const value=pending.pop();if(typeof value==='string'&&value.includes('\0'))throw new ProductError(400,'입력에 사용할 수 없는 NUL 문자가 포함되어 있어요. 해당 문자를 제거해 주세요.','invalid_input');if(value&&typeof value==='object')for(const [key,child]of Object.entries(value)){pending.push(key,child);}}
   const parsed=schema.safeParse(data);if(!parsed.success)throw new ProductError(400,parsed.error.issues.map(i=>`${i.path.join('.')||'Input'}: ${i.message}`).join('; '),'invalid_input');return parsed.data;
 }

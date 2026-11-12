@@ -18,7 +18,8 @@ export function migrationClient() {
 export async function migrateDatabase(client, directory = root) {
   const journal = JSON.parse(await readFile(resolve(directory, 'drizzle/meta/_journal.json'), 'utf8'));
   const names = journal.entries.map(entry => `drizzle/${entry.tag}.sql`);
-  for (const name of (await readdir(resolve(directory, 'migrations/auth'))).filter(name => name.endsWith('.sql')).sort()) names.push(`migrations/auth/${name}`);
+  // Tables outside the workspace backup manifest. The order is fixed so existing ledgers stay valid.
+  for (const area of ['auth', 'agents']) for (const name of (await readdir(resolve(directory, `migrations/${area}`))).filter(name => name.endsWith('.sql')).sort()) names.push(`migrations/${area}/${name}`);
   const existing = await client.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
   if (existing.rows.length && !existing.rows.some(row => row.name === ledger)) throw new Error('Existing untracked schema: refusing to adopt or overwrite this database.');
   await client.execute(`CREATE TABLE IF NOT EXISTS ${ledger} (name TEXT PRIMARY KEY, sha256 TEXT NOT NULL, applied_at TEXT NOT NULL)`);

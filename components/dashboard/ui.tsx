@@ -4,7 +4,7 @@ import { cloneElement, useEffect, useRef, useId, useState, type ReactElement, ty
 import { csvCell } from "@/lib/metrics";
 import { ArrowDownToLine, ArrowRight, Loader2, X, Inbox } from "lucide-react";
 
-export function Button({ children, className = "", variant = "default", busy = false, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "default" | "primary" | "quiet" | "danger"; busy?: boolean }) {
+export function Button({ children, className = "", variant = "default", busy = false, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "default" | "primary" | "soft" | "quiet" | "danger"; busy?: boolean }) {
   return <button type="button" {...props} disabled={props.disabled || busy} className={`d-button d-button-${variant} ${className}`}>{busy ? <Loader2 size={15} className="d-spin" /> : null}{children}</button>;
 }
 export function Panel({ children, className = "", title, subtitle, action }: { children: ReactNode; className?: string; title?: string; subtitle?: string; action?: ReactNode }) {
@@ -104,7 +104,7 @@ export function TrendChart({ data, label = "가시성", suffix = "%" }: { data: 
   return <div className="d-chart">
     <div className="d-chart-plot" ref={plotRef}>
       <svg viewBox={`0 0 ${width} ${height}`} height={height} role="img" aria-label={`${label} 추이, ${points.length}개 관측값`}>
-        <desc>가로 간격은 실제 관측 날짜의 간격입니다. 관측하지 않은 날짜는 0으로 채우지 않습니다.</desc>
+        <desc>가로 간격은 실제 관측 날짜의 간격이에요. 관측하지 않은 날짜는 0으로 채우지 않아요.</desc>
         <defs><linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--lumen-accent)" stopOpacity=".18" /><stop offset="100%" stopColor="var(--lumen-accent)" stopOpacity=".01" /></linearGradient></defs>
         {[0, .25, .5, .75, 1].map(p => <g key={p}><line x1="48" x2={width - 18} y1={floor - p * (floor - pad)} y2={floor - p * (floor - pad)} stroke="var(--lumen-border)" strokeDasharray="3 4" /><text x="0" y={floor - p * (floor - pad) + 4} fill="var(--lumen-muted)" fontSize="12">{axisLabel(p * max)}</text></g>)}
         {points.length > 0 && <>{span > 0 && <><path d={`${line} L${points.at(-1)!.x},${floor} L${points[0].x},${floor} Z`} fill={`url(#${gradientId})`} /><path d={line} fill="none" stroke="var(--lumen-accent)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" /></>}{points.map((p, i) => <g key={i}><circle cx={p.x} cy={p.y} r="3" fill="var(--lumen-accent)"><title>{`${dateLabel(p.date)}: ${numberLabel(p.value)}${suffix}`}</title></circle>{labelIndices.has(i) && <text x={p.x} y="236" fill="var(--lumen-muted)" fontSize="12" textAnchor={!span ? "middle" : i === 0 ? "start" : p.timestamp === points.at(-1)!.timestamp ? "end" : "middle"}>{dateLabel(p.date)}</text>}</g>)}</>}

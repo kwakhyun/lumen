@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /dashboard
+Disallow: /demo
 Disallow: /api/
 Disallow: /mcp
 
@@ -10,6 +11,7 @@ User-agent: OAI-SearchBot
 User-agent: PerplexityBot
 Allow: /
 Disallow: /dashboard
+Disallow: /demo
 Disallow: /api/
 Disallow: /mcp
 

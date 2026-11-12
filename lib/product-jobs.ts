@@ -4,6 +4,7 @@ import * as t from '@/db/schema';
 import { DEMO_MODELS } from './product-types';
 import { now, publicAnswer, publicRun, publicSite, quota, uid } from './product-server';
 import { askProvider, providerStatuses, requireProvider } from './providers';
+import { GEMINI_MODEL } from './providers-gemini';
 import { extractMentions } from './metrics';
 import { syntheticAnswer } from './demo';
 import { ProductError } from './product-validation';
@@ -50,7 +51,7 @@ async function requireRunScheduleActive(site:typeof t.sites.$inferSelect,runId:s
   return deadline?.endsAt;
 }
 function assertRunDeadline(endsAt:number|null|undefined){
-  if(endsAt!==null&&endsAt!==undefined&&endsAt<=Date.now())throw new ProductError(409,'일정의 종료 시각이 지나 새 답변 수집을 중단했습니다.','schedule_expired');
+  if(endsAt!==null&&endsAt!==undefined&&endsAt<=Date.now())throw new ProductError(409,'일정의 종료 시각이 지나 새 답변 수집을 중단했어요.','schedule_expired');
 }
 
 export async function processRun(site:typeof t.sites.$inferSelect,runId:string){
@@ -64,7 +65,7 @@ export async function processRun(site:typeof t.sites.$inferSelect,runId:string){
   try{
     const leaseFence=()=>sql`EXISTS (SELECT 1 FROM runs WHERE id = ${runId} AND site_id = ${site.id} AND lease_token = ${leaseToken} AND lease_until > ${Date.now()})`;
     // An interrupted request might already have incurred provider cost. Mark it failed, never silently replay it.
-    await db.update(t.answers).set({status:'failed',error:'Collection interrupted after dispatch. Start a new run to collect this answer again.',completedAt:now()}).where(and(eq(t.answers.runId,runId),eq(t.answers.siteId,site.id),eq(t.answers.status,'processing'),leaseFence()));
+    await db.update(t.answers).set({status:'failed',error:'요청을 보낸 뒤 수집이 중단됐어요. 이 답변을 다시 받으려면 새 수집을 시작해 주세요.',completedAt:now()}).where(and(eq(t.answers.runId,runId),eq(t.answers.siteId,site.id),eq(t.answers.status,'processing'),leaseFence()));
     
     const pending=await db.select().from(t.answers).where(and(eq(t.answers.runId,runId),eq(t.answers.siteId,site.id),eq(t.answers.status,'pending'))).limit(2);
     const competitors=await db.select().from(t.competitors).where(eq(t.competitors.siteId,site.id));
@@ -80,16 +81,16 @@ export async function processRun(site:typeof t.sites.$inferSelect,runId:string){
           // Recheck synchronously after the caller await: another dispatch can
           // cross the deadline in that microtask gap. Keep the two-call lease bounded.
           assertRunDeadline(await requireRunScheduleActive(site,runId));
-          result=await askProvider(a.model,a.promptText,{search:true,instructions:`Answer the user's product discovery question objectively in ${site.language}. Consider the ${site.country} market where relevant. ${a.model==='gemini-3.8-flash'?'Use your model knowledge only. Web search is unavailable. Do not imply current verification or invent sources.':'Search the web and cite relevant sources.'} Explain tradeoffs. Do not assume any particular brand should be recommended. Do not invent sources or claims.`,maxTokens:1800});
+          result=await askProvider(a.model,a.promptText,{search:true,instructions:`Answer the user's product discovery question objectively in ${site.language}. Consider the ${site.country} market where relevant. ${a.model===GEMINI_MODEL?'Use your model knowledge only. Web search is unavailable. Do not imply current verification or invent sources.':'Search the web and cite relevant sources.'} Explain tradeoffs. Do not assume any particular brand should be recommended. Do not invent sources or claims.`,maxTokens:1800});
         }
         const mentions=extractMentions(result.text,result.citations,[site,...competitors]);
         await db.update(t.answers).set({...result,citations:JSON.stringify(result.citations),mentions:JSON.stringify(mentions),status:'completed',error:null,completedAt:now()}).where(and(eq(t.answers.id,a.id),eq(t.answers.siteId,site.id),eq(t.answers.status,'processing'),leaseFence()));
-      }catch(error){await db.update(t.answers).set({status:'failed',error:error instanceof ProductError?error.message:'The answer could not be collected. Start a new run to try again.',completedAt:now()}).where(and(eq(t.answers.id,a.id),eq(t.answers.siteId,site.id),eq(t.answers.status,'processing'),leaseFence()));}
+      }catch(error){await db.update(t.answers).set({status:'failed',error:error instanceof ProductError?error.message:'답변을 수집하지 못했어요. 새 수집을 시작해 다시 시도해 주세요.',completedAt:now()}).where(and(eq(t.answers.id,a.id),eq(t.answers.siteId,site.id),eq(t.answers.status,'processing'),leaseFence()));}
     }));
     const answers=await db.select().from(t.answers).where(and(eq(t.answers.runId,runId),eq(t.answers.siteId,site.id)));
     const completed=answers.filter(a=>a.status==='completed').length,failed=answers.filter(a=>a.status==='failed').length,finished=completed+failed===original.total;
     const status=finished?(failed?(completed?'partial':'failed'):'completed'):'running';
-    const [run]=await db.update(t.runs).set({completed,failed,status,completedAt:finished?now():null,leaseUntil:0,leaseToken:null,error:failed?`${failed} answer${failed===1?'':'s'} could not be collected. Review the answer errors.`:null}).where(and(eq(t.runs.id,runId),eq(t.runs.siteId,site.id),eq(t.runs.leaseToken,leaseToken))).returning();
+    const [run]=await db.update(t.runs).set({completed,failed,status,completedAt:finished?now():null,leaseUntil:0,leaseToken:null,error:failed?`답변 ${failed}개를 수집하지 못했어요. 답변별 실패 사유를 확인해 주세요.`:null}).where(and(eq(t.runs.id,runId),eq(t.runs.siteId,site.id),eq(t.runs.leaseToken,leaseToken))).returning();
     if(!run)throw new ProductError(409,'Processing lease changed. Refresh the run.','run_lease_changed');
     return {run:publicRun(run),answers:answers.map(publicAnswer)};
   }catch(error){

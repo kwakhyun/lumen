@@ -84,7 +84,7 @@ test('initial import UI has an accessible file field, disclosed limits and no im
   assert.ok(html.includes(`for="${id}"`));
   assert.ok(html.includes(`aria-describedby="${id}-hint"`));
   assert.match(html, /32 KiB/);
-  assert.match(html, /선택만으로 서버에 전송하거나 저장하지 않습니다/);
+  assert.match(html, /선택만으로 서버에 전송하거나 저장하지 않아요/);
   assert.match(html, /서버 내부, 로그인과 권한, 취약한 소스 코드는 검사하지 않으며/);
   assert.doesNotMatch(html, /<button[^>]*>결과 저장<\/button>|지금 점검|보안 점수/);
 });

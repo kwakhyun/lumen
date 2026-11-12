@@ -15,7 +15,7 @@ function report(e){return{id:crypto.randomUUID(),siteId:'fixture-site',evidence:
 test('limited positive settings never become an overall security score, CSP efficacy claim or indexing proof',()=>{
   const checks=assessSecurityEvidence(evidence()),ids=new Set(checks.map(f=>f.id));assert.equal(ids.size,checks.length);assert.equal(checks.length,16);
   assert.equal(checks.find(f=>f.id==='https').state,'pass');assert.equal(checks.find(f=>f.id==='csp').state,'unknown');assert.equal(checks.find(f=>f.id==='cookies').state,'unknown');
-  assert.match(checks.find(f=>f.id==='robots-oai-searchbot').detail,/실제 봇의 방문이나 색인 증거는 아닙니다/);assert.ok(checks.every(f=>!('score'in f)));
+  assert.match(checks.find(f=>f.id==='robots-oai-searchbot').detail,/실제 봇의 방문이나 색인 증거는 아니에요/);assert.ok(checks.every(f=>!('score'in f)));
 });
 test('missing collection is unknown rather than a fabricated missing-header vulnerability',()=>{
   const e=evidence();Object.assign(e.home,{status:null,error:'timeout',bodyComplete:false,headers:null,cookies:null,html:null,contentType:'unknown'});

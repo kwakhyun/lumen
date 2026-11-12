@@ -302,14 +302,14 @@ export async function readGa4Baseline<T = import('./impact-baseline-types').Impa
     const metadata = [record(totals.metadata), record(ai.metadata)];
     const dataQuality = { subjectToThresholding: metadata.some(m => m.subjectToThresholding === true), dataLossFromOtherRow: metadata.some(m => m.dataLossFromOtherRow === true), sampled: metadata.some(m => array(m.samplingMetadatas).length > 0), truncated: metadata.some(m => array(m.dataTruncationReasons).length > 0), emptyReasons: metadata.flatMap(m => typeof m.emptyReason === 'string' && m.emptyReason ? [m.emptyReason.slice(0, 500)] : []) };
     const notes = [
-      `GA4에 기록된 ${hostName} 및 www.${hostName}의 합계입니다. 다른 하위 도메인은 포함하지 않으며 개선 대상과 비교 대상의 성과 집계로 사용하지 않습니다.`,
-      `날짜는 GA4 속성 시간대(${timeZone}) 기준입니다. UTC로 작성한 검증 계획의 전후 비교값과 구분합니다.`,
-      'AI 유입은 지정된 AI 서비스 도메인이 세션 출처에 남은 경우입니다. 직접 방문이나 출처가 사라진 유입은 포함되지 않을 수 있습니다.',
-      '0은 요청 조건에 맞는 GA4 기록이 없다는 뜻입니다. 계측 누락이나 동의하지 않은 방문까지 없었다는 뜻은 아닙니다.',
-      '전환 세션, 주문과 매출은 이 요청으로 측정하지 않으며 미측정으로 남깁니다. GA4 데이터는 처리 지연으로 변경될 수 있습니다.',
+      `GA4에 기록된 ${hostName} 및 www.${hostName}의 합계예요. 다른 하위 도메인은 포함하지 않으며 개선 대상과 비교 대상의 성과 집계로 사용하지 않아요.`,
+      `날짜는 GA4 속성 시간대(${timeZone}) 기준이에요. UTC로 작성한 검증 계획의 전후 비교값과 구분해요.`,
+      'AI 유입은 지정된 AI 서비스 도메인이 세션 출처에 남은 경우예요. 직접 방문이나 출처가 사라진 유입은 포함되지 않을 수 있어요.',
+      '0은 요청 조건에 맞는 GA4 기록이 없다는 뜻이에요. 계측 누락이나 동의하지 않은 방문까지 없었다는 뜻은 아니에요.',
+      '전환 세션, 주문과 매출은 이 요청으로 측정하지 않으며 미측정으로 남겨요. GA4 데이터는 처리 지연으로 변경될 수 있어요.',
     ];
-    if (endDate !== requestedEndDate) notes.push('기준 기간이 진행 중이어서 GA4 속성 시간대의 어제까지만 가져왔습니다.');
-    if (dataQuality.subjectToThresholding || dataQuality.dataLossFromOtherRow || dataQuality.sampled || dataQuality.truncated || dataQuality.emptyReasons.length) notes.push('GA4 응답에 데이터 품질 제한이 있습니다. 임계치, 샘플링, 데이터 누락과 빈 응답 사유를 확인하세요.');
+    if (endDate !== requestedEndDate) notes.push('기준 기간이 진행 중이어서 GA4 속성 시간대의 어제까지만 가져왔어요.');
+    if (dataQuality.subjectToThresholding || dataQuality.dataLossFromOtherRow || dataQuality.sampled || dataQuality.truncated || dataQuality.emptyReasons.length) notes.push('GA4 응답에 데이터 품질 제한이 있어요. 임계치, 샘플링, 데이터 누락과 빈 응답 사유를 확인하세요.');
     const payload: import('./impact-baseline-types').ImpactBaselinePayload = { source: 'ga4_api', metricVersion: 'ga4-baseline-v1', propertyId: row.property_id, propertyName: typeof property.displayName === 'string' ? property.displayName.slice(0, 200) : row.property_name || row.property_id, fetchedAt: isoNow(), requestedStartDate, requestedEndDate, startDate, endDate, timeZone, hostName, totalSessions, aiSessions, totalViews, convertingSessions: null, orders: null, revenueMinor: null, sourcePattern: AI_SOURCE_PATTERN, scope: 'tracked_site_sessions', completeForPlan: false, dataQuality, notes };
     const current = await connection(ownerId, siteId);
     if (!current || current.status !== 'connected' || current.property_id !== row.property_id || current.revision !== row.revision || current.lease_token !== lease || current.lease_until <= Date.now()) throw new ProductError(409, '조회 중 GA4 연결이 변경되어 새 자료를 저장하지 않았어요.', 'integration_changed');

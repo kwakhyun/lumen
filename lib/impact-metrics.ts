@@ -43,16 +43,16 @@ export function compareImpact(study: ImpactStudy, allSearches: ImpactSearch[], a
     revenueTotals[arm] = { before: before?.revenueMinor ?? null, after: after?.revenueMinor ?? null, deltaMinor: comparable ? difference(before?.revenueMinor ?? null, after?.revenueMinor ?? null) : null };
   }
   const caveats = [
-    '직접 입력한 실제 서비스 관측 기록입니다. Lumen이 답변의 진위나 검색 실행을 독립 검증한 결과는 아닙니다.',
-    '언급률과 인용률은 같은 질문과 회차에서 전후 모두 검색 확인된 AI 답변만 비교합니다. 오류, AI 답변 없음, 미확인 기록은 제외되므로 전체 이용자의 노출 확률과 다릅니다.',
-    '비교 대상의 변화를 뺀 차이는 기술통계이며 콘텐츠 개선의 인과효과나 통계적 유의성을 증명하지 않습니다. 질문의 대표성, 비교 대상의 추세, 광고와 모델 변경을 함께 확인하세요.',
-    '동일 질문의 반복 관측은 서로 독립적인 고객 표본이 아닙니다. 관측 횟수를 사용자 수로 해석하지 마세요.',
-    '매출과 전환은 사용자가 같은 출처 ID, UTC 기간, 계획의 유입 범위와 귀속 규칙을 확인한 집계입니다. Lumen이 원본 보고서와 일치하는지 검증한 값은 아닙니다. AI 답변을 보고 나중에 직접 방문한 구매 등은 누락될 수 있습니다.',
+    '직접 입력한 실제 서비스 관측 기록이에요. Lumen이 답변의 진위나 검색 실행을 독립 검증한 결과는 아니에요.',
+    '언급률과 인용률은 같은 질문과 회차에서 전후 모두 검색 확인된 AI 답변만 비교해요. 오류, AI 답변 없음, 미확인 기록은 제외되므로 전체 이용자의 노출 확률과 달라요.',
+    '비교 대상의 변화를 뺀 차이는 기술통계이며 콘텐츠 개선의 인과효과나 통계적 유의성을 증명하지 않아요. 질문의 대표성, 비교 대상의 추세, 광고와 모델 변경을 함께 확인하세요.',
+    '동일 질문의 반복 관측은 서로 독립적인 고객 표본이 아니에요. 관측 횟수를 사용자 수로 해석하지 마세요.',
+    '매출과 전환은 사용자가 같은 출처 ID, UTC 기간, 계획의 유입 범위와 귀속 규칙을 확인한 집계예요. Lumen이 원본 보고서와 일치하는지 검증한 값은 아니에요. AI 답변을 보고 나중에 직접 방문한 구매 등은 누락될 수 있어요.',
   ];
-  if (study.registration === 'retrospective') caveats.push('관측 기간이 시작된 뒤 등록한 사후 계획입니다. 결과를 보고 질문이나 기간을 선택했을 가능성을 배제할 수 없습니다.');
-  if (Object.values(coverage).some(group => Object.values(group).some(row => row.missing > 0))) caveats.push('아직 기록하지 않은 관측이 있습니다. 누락을 0으로 계산하지 않습니다.');
-  if (allSearches.some(row => row.voidedAt) || allOutcomes.some(row => row.voidedAt)) caveats.push('제외한 기록이 있습니다. 원본과 제외 사유를 확인해 선택적 제외가 있었는지 검토하세요.');
-  if (!comparable) caveats.push('성과 비교에는 같은 출처와 속성·스토어 ID로 기록한 개선 대상과 비교 대상 전후 집계 4개가 필요합니다. UTC 기간과 계획의 귀속 규칙을 확인해야 하며, 출처가 다르거나 누락되면 비교값을 계산하지 않습니다.');
-  if (outcomes.some(row => row.confounders.trim())) caveats.push('광고, 가격, 계절성 등 함께 달라진 조건이 기록되어 있습니다. 매출 변화의 다른 원인을 검토하세요.');
+  if (study.registration === 'retrospective') caveats.push('관측 기간이 시작된 뒤 등록한 사후 계획이에요. 결과를 보고 질문이나 기간을 선택했을 가능성을 배제할 수 없어요.');
+  if (Object.values(coverage).some(group => Object.values(group).some(row => row.missing > 0))) caveats.push('아직 기록하지 않은 관측이 있어요. 누락을 0으로 계산하지 않아요.');
+  if (allSearches.some(row => row.voidedAt) || allOutcomes.some(row => row.voidedAt)) caveats.push('제외한 기록이 있어요. 원본과 제외 사유를 확인해 선택적 제외가 있었는지 검토하세요.');
+  if (!comparable) caveats.push('성과 비교에는 같은 출처와 속성·스토어 ID로 기록한 개선 대상과 비교 대상 전후 집계 4개가 필요해요. UTC 기간과 계획의 귀속 규칙을 확인해야 하며, 출처가 다르거나 누락되면 비교값을 계산하지 않아요.');
+  if (outcomes.some(row => row.confounders.trim())) caveats.push('광고, 가격, 계절성 등 함께 달라진 조건이 기록되어 있어요. 매출 변화의 다른 원인을 검토하세요.');
   return { coverage, search, business: { completeCells, comparable, conversionRate, conversionDifferenceInDifferencesPp: difference(conversionRate.control.deltaPp, conversionRate.treatment.deltaPp), revenuePerSession, revenueDifferenceInDifferencesMinor: difference(revenuePerSession.control.deltaMinor, revenuePerSession.treatment.deltaMinor), revenueTotals }, caveats };
 }

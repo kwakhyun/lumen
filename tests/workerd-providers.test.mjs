@@ -12,7 +12,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let mf, redirect = false, calls = [];
 before(async () => {
   const bundled = await build({
-    absWorkingDir: root, bundle: true, write: false, format: 'esm', platform: 'neutral', target: 'es2022', external: ['cloudflare:workers'], plugins: [{name:'fixture-runtime',setup(build){build.onResolve({filter:/^@\/lib\/runtime-env$/},()=>({path:'fixture-env',namespace:'fixture'}));build.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:"export { env } from 'cloudflare:workers';",loader:'js'}));}}],
+    absWorkingDir: root, bundle: true, write: false, format: 'esm', platform: 'neutral', target: 'es2022', external: ['cloudflare:workers'], plugins: [{name:'fixture-runtime',setup(build){build.onResolve({filter:/^@\/lib\/runtime-env$/},()=>({path:'fixture-env',namespace:'fixture'}));build.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:"export { env } from 'cloudflare:workers';",loader:'js'}));
+      // The Claude adapter uses the Node SDK and runs only on the Node deployment; it is not bundled for workerd.
+      build.onResolve({filter:/\/providers-anthropic$/},()=>({path:'fixture-claude',namespace:'fixture-claude'}));build.onLoad({filter:/.*/,namespace:'fixture-claude'},()=>({contents:"export const CLAUDE_MODEL='claude-opus-5-5';export const claudeConfigured=()=>false;export async function askClaude(){throw new Error('Claude is not available in workerd.');}",loader:'js'}));}}],
     stdin: { resolveDir: root, sourcefile: 'workerd-provider-fixture.ts', loader: 'ts', contents: `
       import { askOpenAI } from './lib/providers';
       import { askGemini } from './lib/providers-gemini';

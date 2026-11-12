@@ -12,10 +12,10 @@ type EvidenceFilter = "all" | "competitor_only" | "unmentioned" | "uncollected";
 type PromptSort = "pinned" | "newest" | "mention_rate" | "answers";
 
 const evidenceFilters: { id: EvidenceFilter; label: string; description: string }[] = [
-  { id: "all", label: "전체", description: "선택한 기간과 모델의 답변을 기준으로 표시합니다." },
-  { id: "competitor_only", label: "경쟁사만 언급", description: "우리 브랜드 없이 등록한 경쟁사가 등장한 완료 답변이 있는 질문입니다." },
-  { id: "unmentioned", label: "자사 미언급", description: "완료 답변이 있지만 우리 브랜드가 한 번도 언급되지 않은 질문입니다." },
-  { id: "uncollected", label: "완료 답변 없음", description: "선택한 기간과 모델에 완료 답변이 없는 질문입니다. 미수집, 실패와 진행 중인 질문을 포함합니다." },
+  { id: "all", label: "전체", description: "선택한 기간과 모델의 답변을 기준으로 표시해요." },
+  { id: "competitor_only", label: "경쟁사만 언급", description: "우리 브랜드 없이 등록한 경쟁사가 등장한 완료 답변이 있는 질문이에요." },
+  { id: "unmentioned", label: "자사 미언급", description: "완료 답변이 있지만 우리 브랜드가 한 번도 언급되지 않은 질문이에요." },
+  { id: "uncollected", label: "완료 답변 없음", description: "선택한 기간과 모델에 완료 답변이 없는 질문이에요. 미수집, 실패와 진행 중인 질문을 포함해요." },
 ];
 const sortLabels: Record<PromptSort, string> = { pinned: "고정한 질문 우선", newest: "최근 등록순", mention_rate: "언급률 낮은순", answers: "완료 답변 많은순" };
 
@@ -70,12 +70,12 @@ export default function Prompts({ state, answers, busy, onDetail, onAdd, onEdit,
   const extraFilterCount = Number(intent !== "all") + Number(onlyPinned) + Number(sort !== "pinned");
   const activePromptCount = state.prompts.filter(prompt => prompt.active).length;
   const filterDescription = evidenceFilters.find(filter => filter.id === evidenceFilter)!.description;
-  const suggestionHint = state.site.mode === "demo" ? "샘플 질문 제안은 AI 사용량을 차감하지 않습니다." : "직접 추가한 질문은 사용량을 차감하지 않습니다. AI 질문 제안은 제안 수와 관계없이 무료 사용량 1회를 차감합니다.";
+  const suggestionHint = state.site.mode === "demo" ? "샘플 질문 제안은 AI 사용량을 차감하지 않아요." : "직접 추가한 질문은 사용량을 차감하지 않아요. AI 질문 제안은 제안 수와 관계없이 무료 사용량 1회를 차감해요.";
   const reset = () => { setQuery(""); setIntent("all"); setOnlyPinned(false); setEvidenceFilter("all"); setSort("pinned"); setPage(0); };
   const suggestions = <details className="d-prompt-ai-suggestions"><summary><WandSparkles size={15} />AI로 질문 제안받기</summary><div><p id="prompt-suggestion-hint">{suggestionHint}</p><div className="d-prompt-suggestion-controls"><label className="d-select-wrap"><span>제안 수</span><select aria-label="제안할 질문 수" value={suggestionCount} onChange={event => setSuggestionCount(Number(event.target.value))} disabled={busy}>{[1, 3, 5].map(count => <option key={count} value={count}>{count}개</option>)}</select></label><Button onClick={() => onGenerate(suggestionCount)} busy={busy} aria-describedby="prompt-suggestion-hint"><WandSparkles size={14} />질문 {suggestionCount}개 제안</Button></div></div></details>;
 
   if (!state.prompts.length) return <>
-    <Panel className="d-prompts-panel"><Empty title="첫 질문을 추가하세요" text="고객이 AI에게 물어볼 질문을 적어 보세요. 예를 들어 ‘우리 팀에 맞는 업무 관리 도구를 추천해 줘’처럼 작성할 수 있습니다." action={<Button variant="primary" onClick={onAdd} disabled={busy}><Plus size={16} />첫 질문 추가</Button>} />{suggestions}</Panel>
+    <Panel className="d-prompts-panel"><Empty title="첫 질문을 추가하세요" text="고객이 AI에게 물어볼 질문을 적어 보세요. 예를 들어 ‘우리 팀에 맞는 업무 관리 도구를 추천해 줘’처럼 작성할 수 있어요." action={<Button variant="primary" onClick={onAdd} disabled={busy}><Plus size={16} />첫 질문 추가</Button>} />{suggestions}</Panel>
     {state.runs.length > 0 && <RunHistory runs={state.runs} />}
   </>;
 
@@ -85,7 +85,7 @@ export default function Prompts({ state, answers, busy, onDetail, onAdd, onEdit,
         <div className="d-search-box"><Search size={14} /><input className="d-search-input" placeholder="질문 또는 주제 검색" aria-label="질문 검색" value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} /></div>
         <Button variant="primary" onClick={onRun} busy={busy} disabled={!activePromptCount} aria-describedby={!activePromptCount ? "prompt-no-active" : undefined}><Play size={14} />답변 수집 설정</Button>
       </div>
-      {!activePromptCount && <p id="prompt-no-active" className="d-prompt-no-active">질문 관리에서 ‘추적’을 켜면 수집할 질문을 선택할 수 있습니다.</p>}
+      {!activePromptCount && <p id="prompt-no-active" className="d-prompt-no-active">질문 관리에서 ‘추적’을 켜면 수집할 질문을 선택할 수 있어요.</p>}
       <div className="d-prompt-status-filters" role="group" aria-label="답변 상태 필터">
         {evidenceFilters.map(filter => <button key={filter.id} type="button" className={`d-prompt-status-filter ${evidenceFilter === filter.id ? "is-active" : ""}`} aria-pressed={evidenceFilter === filter.id} title={filter.description} onClick={() => { setEvidenceFilter(filter.id); setPage(0); }}><span>{filter.label}</span><strong>{counts[filter.id]}</strong></button>)}
       </div>
@@ -97,7 +97,7 @@ export default function Prompts({ state, answers, busy, onDetail, onAdd, onEdit,
         </div></details>
         {hasFilters && <Button variant="quiet" onClick={reset}><RotateCcw size={14} />초기화</Button>}
       </div>
-      <div className="d-prompts-results"><p aria-live="polite"><strong>{filtered.length}개 질문</strong><span>{sortLabels[sort]}</span></p><details><summary>집계 기준</summary><p>{filterDescription} 상태별 질문은 겹칠 수 있으며 실패와 진행 중인 답변은 언급률에서 제외합니다.</p></details></div>
+      <div className="d-prompts-results"><p aria-live="polite"><strong>{filtered.length}개 질문</strong><span>{sortLabels[sort]}</span></p><details><summary>집계 기준</summary><p>{filterDescription} 상태별 질문은 겹칠 수 있으며 실패와 진행 중인 답변은 언급률에서 제외해요.</p></details></div>
       {filtered.length ? <>
         <div className="d-table-wrap d-prompts-desktop"><table className="d-table d-prompts-table"><thead><tr><th scope="col" className="d-prompts-tracking">추적</th><th scope="col">질문</th><th scope="col">자사 언급률</th><th scope="col">답변에서 확인할 내용</th><th scope="col"><span className="d-prompts-actions-label">질문 관리</span></th></tr></thead><tbody>{visibleRows.map(row => {
           const { prompt } = row;

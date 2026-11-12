@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-html-link-for-pages -- Keep document navigation consistent with the deployed app. */
 import type { Metadata } from 'next';
-import { ArrowRight, ArrowUpRight, ChevronDown, SunMedium } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, ChevronDown } from 'lucide-react';
+import { LumenMark } from '@/components/lumen-mark';
 import { AnalyticsConsent } from '@/components/analytics-consent';
 import '../../landing.css';
 
@@ -23,7 +24,7 @@ const questions = [
 export default function FreeAiBrandTrackingGuide() {
   return <main className="lp lp-guide">
     <a className="lp-skip" href="#guide-main">본문으로 이동</a>
-    <header className="lp-header"><a href="/" className="lp-logo" aria-label="Lumen 홈"><SunMedium size={25}/><span>lumen</span></a><nav aria-label="주 메뉴"><a href="/">제품 소개</a><a href="#guide-steps">사용 순서</a><a href="#guide-metrics">지표 정의</a><a href="#guide-faq">자주 묻는 질문</a></nav><a className="lp-header-cta" href="/dashboard">워크스페이스 열기<ArrowUpRight size={16}/></a></header>
+    <header className="lp-header"><a href="/" className="lp-logo" aria-label="Lumen 홈"><LumenMark size={26}/><span>lumen</span></a><nav aria-label="주 메뉴"><a href="/">제품 소개</a><a href="#guide-steps">사용 순서</a><a href="#guide-metrics">지표 정의</a><a href="#guide-faq">자주 묻는 질문</a></nav><a className="lp-header-cta" href="/dashboard">워크스페이스 열기<ArrowUpRight size={16}/></a></header>
     <article id="guide-main" className="lp-guide-article">
       <header className="lp-guide-intro"><a className="lp-guide-back" href="/">← Lumen 제품 소개</a><span className="lp-kicker">LUMEN 활용 가이드</span><h1>ChatGPT와 Perplexity에서{' '}<br/>브랜드 언급과 인용을{' '}<br/>무료로 추적하는 방법</h1><p className="lp-guide-lead">소규모 한국어 SaaS 팀은 Lumen에서 실제 AI 검색의 관측 기록을 모으고 콘텐츠 변경 전후를 비교할 수 있습니다. 검색은 각 서비스 화면에서 직접 확인하고, Lumen에는 질문, 답변 발췌, 원래 인용과 관측 시각을 남깁니다.</p><p className="lp-guide-meta">기능 안내 기준: <time dateTime="2026-10-23">2026년 10월 23일</time> / 작성: Lumen</p></header>
       <div className="lp-guide-answer"><h2>어떤 도구로 무엇을 추적하나요?</h2><p><strong>Lumen은 무료로 사용할 수 있는 AI 답변 분석과 검색 관측 도구입니다.</strong> 연결된 모델의 API 답변 수집, 직접 확인한 ChatGPT와 Perplexity 검색의 언급·인용 기록, GA4 방문 자료 조회를 제공합니다. GPT-6.1 Terra는 검색 답변을, Gemini는 웹 검색이 없는 일반 답변을 수집합니다. 이 세 자료는 서로 다른 화면과 지표로 관리합니다.</p><p>실제 AI 검색을 확인하려면 해당 서비스의 검색 화면이 필요합니다. Lumen의 무료 Gemini API 답변에는 웹 검색이 없으므로, 이를 ChatGPT나 Perplexity의 검색 결과로 대신 기록하지 않습니다.</p><a className="lp-text-link" href="/dashboard?start=1">무료 워크스페이스 시작하기<ArrowRight size={17}/></a></div>
@@ -42,6 +43,6 @@ export default function FreeAiBrandTrackingGuide() {
       <section id="guide-faq" className="lp-guide-section lp-guide-faq"><h2>6. 자주 묻는 질문</h2>{questions.map(([question,answer]) => <details key={question}><summary>{question}<ChevronDown size={18}/></summary><p>{answer}</p></details>)}</section>
       <section className="lp-guide-start"><h2>첫 질문의 기준값부터 남겨보세요</h2><p>브랜드를 등록하고 실제 검색에서 확인한 답변을 저장하세요. GA4는 방문 자료가 필요할 때 연결하면 됩니다.</p><a className="lp-btn primary" href="/dashboard?start=1">내 브랜드 등록하기<ArrowRight size={17}/></a><small>Google 로그인 후 이용할 수 있습니다. 카드 등록은 필요하지 않습니다.</small></section>
     </article>
-    <footer className="lp-footer"><a href="/" className="lp-logo"><SunMedium size={23}/><span>lumen</span></a><p>AI 답변과 실제 검색 관측을 함께 기록하세요</p><div><a href="/methodology">측정 방법</a><a href="/privacy">개인정보 처리 안내</a><a href="/terms">이용 안내</a><a href="mailto:khyun9685@gmail.com">문의</a><AnalyticsConsent/><span>© {new Date().getFullYear()} Lumen</span></div><small className="lp-operator">운영자 곽현 / 지원 <a href="mailto:khyun9685@gmail.com">khyun9685@gmail.com</a></small></footer>
+    <footer className="lp-footer"><a href="/" className="lp-logo"><LumenMark size={24}/><span>lumen</span></a><p>AI 답변과 실제 검색 관측을 함께 기록하세요</p><div><a href="/methodology">측정 방법</a><a href="/privacy">개인정보 처리 안내</a><a href="/terms">이용 안내</a><a href="mailto:khyun9685@gmail.com">문의</a><AnalyticsConsent/><span>© {new Date().getFullYear()} Lumen</span></div><small className="lp-operator">운영자 곽현 / 지원 <a href="mailto:khyun9685@gmail.com">khyun9685@gmail.com</a></small></footer>
   </main>;
 }

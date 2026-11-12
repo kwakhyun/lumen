@@ -17,6 +17,6 @@ export default function AnalysisScope({ scope, answerCount }: { scope: Dashboard
   return <div className="d-analysis-scope" aria-label="생성에 사용할 분석 조건">
     <strong>{analysisScopeLabel(scope)}</strong>
     <span>현재 화면의 완료 답변 {answerCount}개</span>
-    <p>{answerCount ? "실행 시점에 같은 기간과 모델로 다시 집계합니다. 새 수집 결과에 따라 표본 수가 달라질 수 있습니다." : "현재 완료 답변이 없습니다. 실행 시에도 완료 답변이 없으면 근거 부족을 표시하고 AI 사용량을 차감하지 않습니다."}</p>
+    <p>{answerCount ? "실행 시점에 같은 기간과 모델로 다시 집계해요. 새 수집 결과에 따라 표본 수가 달라질 수 있어요." : "현재 완료 답변이 없어요. 실행 시에도 완료 답변이 없으면 근거 부족을 표시하고 AI 사용량을 차감하지 않아요."}</p>
   </div>;
 }

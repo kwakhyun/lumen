@@ -4,6 +4,7 @@ declare namespace Cloudflare {
     BUCKET?: R2Bucket;
     OPENAI_API_KEY?: string;
     GEMINI_API_KEY?: string;
+    ANTHROPIC_API_KEY?: string;
     PERPLEXITY_API_KEY?: string;
     LUMEN_AUTOMATION_SECRET?: string;
     LUMEN_OPERATOR_USER_ID?: string;

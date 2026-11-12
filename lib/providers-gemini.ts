@@ -9,6 +9,8 @@ import { providerHttpError, providerNetworkError } from './providers-errors';
 // Search is deliberately disabled: https://ai.google.dev/gemini-api/terms#grounding-with-google-search
 // Ordinary generated text supports mention analysis; it is NOT a Google Search citation measurement.
 export const GEMINI_MODEL = 'gemini-3.8-flash';
+/** Pause before the single repeat of an overloaded (HTTP 503) request. */
+export const GEMINI_OVERLOAD_RETRY_MS = 1500;
 const object = (value: unknown): Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const count = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 
@@ -17,17 +19,17 @@ export function parseGeminiResponse(value: unknown): ProviderResult {
   const data = object(value);
   const candidate = object(Array.isArray(data.candidates) ? data.candidates[0] : undefined);
   if (data.error || object(data.promptFeedback).blockReason || candidate.finishReason !== 'STOP') {
-    throw new ProductError(502, 'Gemini did not complete this response. Partial or blocked output is excluded from visibility metrics.', 'incomplete_provider_response');
+    throw new ProductError(502, 'Gemini가 답변을 끝까지 생성하지 못했어요. 불완전하거나 차단된 답변은 지표에 포함하지 않아요.', 'incomplete_provider_response');
   }
   // A future request change must not silently collect Google Search output into the analytics database.
   const grounding = object(candidate.groundingMetadata);
   if (Array.isArray(grounding.groundingChunks) && grounding.groundingChunks.length || Array.isArray(grounding.webSearchQueries) && grounding.webSearchQueries.length || grounding.searchEntryPoint) {
-    throw new ProductError(502, 'Gemini unexpectedly returned search grounding. This response was not stored.', 'unexpected_grounding_response');
+    throw new ProductError(502, 'Gemini가 예상하지 않은 검색 결과를 포함해 응답했어요. 이 답변은 저장하지 않았어요.', 'unexpected_grounding_response');
   }
   const content = object(candidate.content);
   const parts = Array.isArray(content.parts) ? content.parts : [];
   const text = parts.map(object).filter(part => part.thought !== true && typeof part.text === 'string').map(part => part.text as string).join('');
-  if (!text.trim()) throw new ProductError(502, 'Gemini returned no answer text.', 'empty_provider_response');
+  if (!text.trim()) throw new ProductError(502, 'Gemini가 답변 내용을 보내지 않았어요.', 'empty_provider_response');
   const usage = object(data.usageMetadata);
   return {
     text,
@@ -40,23 +42,32 @@ export function parseGeminiResponse(value: unknown): ProviderResult {
 
 export async function askGemini(input: string, options: { instructions?: string; json?: boolean; maxTokens?: number } = {}): Promise<ProviderResult> {
   const key = (env as typeof env & { GEMINI_API_KEY?: string }).GEMINI_API_KEY?.trim();
-  if (!key) throw new ProductError(503, 'Gemini API is not configured on this deployment.', 'provider_unavailable');
+  if (!key) throw new ProductError(503, 'Gemini API가 아직 연결되지 않았어요.', 'provider_unavailable');
   const startedAt = Date.now();
+  const request = () => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+    method: 'POST',
+    headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: input }] }],
+      systemInstruction: { parts: [{ text: `${options.instructions || 'Answer clearly and accurately. Do not invent facts.'}\nWeb search is unavailable. Do not imply that you searched or verified current sources. Answer the question directly and acknowledge uncertainty.` }] },
+      generationConfig: { maxOutputTokens: Number.isSafeInteger(options.maxTokens)?Math.max(256,Math.min(4096,options.maxTokens!)):4096, ...(options.json?{responseMimeType:'application/json'}:{}), thinkingConfig: { thinkingLevel: 'low', includeThoughts: false } },
+    }),
+    // A complete response may take longer than the old 45-second deadline.
+    // Stay below the 120-second collection lease.
+    signal: AbortSignal.timeout(90000),
+    redirect: 'manual', // workerd-compatible; non-2xx responses, including redirects, are rejected below.
+  });
   let response: Response;
   try {
-    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
-      method: 'POST',
-      headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: input }] }],
-        systemInstruction: { parts: [{ text: `${options.instructions || 'Answer clearly and accurately. Do not invent facts.'}\nWeb search is unavailable. Do not imply that you searched or verified current sources. Answer the question directly and acknowledge uncertainty.` }] },
-        generationConfig: { maxOutputTokens: Number.isSafeInteger(options.maxTokens)?Math.max(256,Math.min(4096,options.maxTokens!)):4096, ...(options.json?{responseMimeType:'application/json'}:{}), thinkingConfig: { thinkingLevel: 'low', includeThoughts: false } },
-      }),
-      // A complete response may take longer than the old 45-second deadline.
-      // Stay below the 120-second collection lease; never silently duplicate a billed request.
-      signal: AbortSignal.timeout(90000),
-      redirect: 'manual', // workerd-compatible; non-2xx responses, including redirects, are rejected below.
-    });
+    response = await request();
+    // HTTP 503 is a definite rejection: the model was overloaded and generated nothing.
+    // Repeat it once after a short pause. Timeouts and every other failure stay single-shot,
+    // because the request may already have been processed.
+    if (response.status === 503) {
+      await response.body?.cancel().catch(() => undefined);
+      await new Promise(resolve => setTimeout(resolve, GEMINI_OVERLOAD_RETRY_MS));
+      response = await request();
+    }
   } catch (error) {
     return providerNetworkError(error, 'Gemini', GEMINI_MODEL, startedAt);
   }

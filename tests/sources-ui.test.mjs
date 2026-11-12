@@ -34,7 +34,7 @@ test('source rates use eligible completed answers instead of the largest source 
   const first = answer('first', [citation('https://acme.com/a'), citation('https://acme.com/b'), citation('https://acme.com/a')]);
   const rows = [first, first, answer('second', [citation('https://other.com/')]), answer('ungrounded', [], { model: 'gemini-3.8-flash' }), answer('failed', [], { status: 'failed' })];
   const metrics = computeMetrics(site, [], rows, prompts);
-  const html = renderToStaticMarkup(React.createElement(Sources, { metrics, citationUnavailable: false, answers: rows, prompts, onPrompt() {}, onObserve() {} }));
+  const html = renderToStaticMarkup(React.createElement(Sources, { metrics, citationUnavailable: false, answers: rows, prompts, site, competitors: [], onPrompt() {}, onObserve() {} }));
   assert.equal(metrics.citationEligibleAnswerCount, 2);
   assert.equal(metrics.sources.find(source => source.domain === 'acme.com').citations, 1);
   assert.equal((html.match(/<strong>50%<\/strong>/g) || []).length, 2);
@@ -73,7 +73,7 @@ test('source drilldown keeps removed-question evidence and labels synthetic cita
 test('unsupported citation collection provides a manual observation path instead of a false zero', () => {
   const answers = [answer('gemini', [], { model: 'gemini-3.8-flash' })];
   const metrics = computeMetrics(site, [], answers, prompts);
-  const html = renderToStaticMarkup(React.createElement(Sources, { metrics, citationUnavailable: true, answers, prompts, onPrompt() {}, onObserve() {} }));
+  const html = renderToStaticMarkup(React.createElement(Sources, { metrics, citationUnavailable: true, answers, prompts, site, competitors: [], onPrompt() {}, onObserve() {} }));
   assert.match(html, /현재 답변은 검색 인용을 제공하지 않아요/);
   assert.match(html, /실제 검색 관측 기록/);
   assert.doesNotMatch(html, /<strong>0%<\/strong>/);

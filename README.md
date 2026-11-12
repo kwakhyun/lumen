@@ -1,10 +1,10 @@
 # Lumen
 
-**AI가 브랜드를 어떻게 소개하는지 확인하고, 콘텐츠 개선 전후를 비교하세요.**
+**AI 답변 속 우리 브랜드를 에이전트와 함께 관리하세요.**
 
-Lumen은 브랜드의 AI 답변과 검색 관측을 모아 관리하는 무료 워크스페이스입니다. Gemini API 답변을 수집하고, 직접 확인한 ChatGPT와 Perplexity 검색 결과를 기록하며, GA4 방문 자료와 함께 콘텐츠 개선 효과를 살펴볼 수 있습니다.
+Lumen은 AI 답변에서 브랜드 언급과 인용을 측정하고, 에이전트가 격차 분석과 리포트, 콘텐츠 초안을 만들어 제안하는 GEO 워크스페이스입니다. Claude, GPT, Gemini API 답변을 수집하고, 직접 확인한 ChatGPT와 Perplexity 검색 결과를 기록하며, GA4 방문 자료와 함께 콘텐츠 개선 효과를 살펴볼 수 있습니다.
 
-[서비스 이용하기](https://lumen-ai-visibility.khyun97.chatgpt.site/) · [시작 가이드](https://lumen-ai-visibility.khyun97.chatgpt.site/guides/free-ai-brand-tracking) · [측정 방법](https://lumen-ai-visibility.khyun97.chatgpt.site/methodology)
+[서비스 이용하기](https://lumen-nine-rose.vercel.app/) · [로그인 없이 샘플 보기](https://lumen-nine-rose.vercel.app/demo) · [시작 가이드](https://lumen-nine-rose.vercel.app/guides/free-ai-brand-tracking) · [측정 방법](https://lumen-nine-rose.vercel.app/methodology)
 
 ![Lumen의 샘플 브랜드 분석 화면](public/product-preview.jpg)
 
@@ -12,6 +12,7 @@ Lumen은 브랜드의 AI 답변과 검색 관측을 모아 관리하는 무료 �
 
 ## 이런 일을 할 수 있습니다
 
+- **에이전트:** 가시성 리포트, 질문 격차 분석, 경쟁사 인사이트, 콘텐츠 브리프 등 10가지 작업을 맡깁니다. 진행 단계가 화면에 표시되고, 결과에는 근거가 된 수치가 함께 남습니다. 제안한 작업과 질문은 승인한 것만 추가됩니다.
 - **브랜드와 질문 관리:** 내 브랜드, 경쟁 브랜드와 고객이 물어볼 질문을 등록합니다.
 - **AI 답변 수집:** Gemini API 답변에서 브랜드 언급과 등장 순서를 확인합니다. 매일 또는 매주 같은 질문을 수집하고 실행 결과를 확인할 수 있습니다.
 - **실제 검색 근거 기록:** ChatGPT와 Perplexity에서 직접 확인한 질문, 답변, 원래 인용과 검색 조건을 저장합니다. 여러 관측을 JSON으로 가져올 수도 있습니다.
@@ -31,11 +32,11 @@ Lumen은 브랜드의 AI 답변과 검색 관측을 모아 관리하는 무료 �
 | 실제 AI 검색 관측 | 사용자가 확인한 답변의 브랜드 언급과 원래 인용 | 기록한 질문과 검색 조건 안에서의 관측입니다. 모든 이용자의 검색 결과를 대표하지 않습니다. |
 | GA4 기준 자료와 사업 집계 | 방문 자료, 별도로 입력한 전환과 매출 집계 | GA4 기준 자료 가져오기는 방문까지만 확인합니다. 수집하지 않은 전환, 주문과 매출은 미측정으로 남깁니다. |
 
-브랜드 언급이 늘어도 방문이나 매출이 늘었다고 단정하지 않습니다. Lumen은 근거와 관측 조건을 남기고 비교하는 도구이며, 검색 순위 상승이나 매출 증가를 보장하지 않습니다. 계산 기준과 제외되는 자료는 [측정 방법](https://lumen-ai-visibility.khyun97.chatgpt.site/methodology)에서 확인할 수 있습니다.
+브랜드 언급이 늘어도 방문이나 매출이 늘었다고 단정하지 않습니다. Lumen은 근거와 관측 조건을 남기고 비교하는 도구이며, 검색 순위 상승이나 매출 증가를 보장하지 않습니다. 계산 기준과 제외되는 자료는 [측정 방법](https://lumen-nine-rose.vercel.app/methodology)에서 확인할 수 있습니다.
 
 ## 시작하는 방법
 
-1. [Lumen](https://lumen-ai-visibility.khyun97.chatgpt.site/)에서 ChatGPT 계정으로 로그인하고 브랜드 이름과 웹사이트를 등록합니다.
+1. [Lumen](https://lumen-nine-rose.vercel.app/)에서 Google 계정으로 로그인하고 브랜드 이름과 웹사이트를 등록합니다. 먼저 둘러보려면 [샘플 워크스페이스](https://lumen-nine-rose.vercel.app/demo)를 로그인 없이 열 수 있습니다.
 2. 고객이 브랜드나 제품을 찾을 때 사용할 질문을 추가합니다.
 3. 이용 조건을 확인한 뒤 Gemini 답변을 수집합니다. 답변 원문과 브랜드 언급을 살펴보세요.
 4. 실제 검색 노출을 확인하려면 검증 계획을 만들고 ChatGPT 또는 Perplexity에서 직접 확인한 검색 결과를 기록합니다.
@@ -52,13 +53,13 @@ Lumen은 브랜드의 AI 답변과 검색 관측을 모아 관리하는 무료 �
 | 계정별 | 10회 | 100회 |
 | 서비스 전체 | 50회 | 500회 |
 
-질문 하나를 모델 하나에 보내면 1회를 사용합니다. 질문 제안, 콘텐츠 생성과 AI 상담도 같은 한도를 쓰며, 수동 수집과 정기 수집의 사용량을 합산합니다. 공용 한도에 도달하면 개인 잔여량이 있어도 실행이 제한됩니다. 한도는 UTC 기준으로 초기화되며 운영 설정에 따라 낮아질 수 있습니다. 실제 잔여량은 사용량 화면을 확인하세요.
+질문 하나를 모델 하나에 보내면 1회를 사용합니다. 질문 제안, 콘텐츠 생성과 AI 상담도 같은 한도를 쓰고, 에이전트는 실행 한 번에 2회를 사용합니다(집계 기반 결과와 샘플 실행은 차감 없음).  수동 수집과 정기 수집의 사용량을 합산합니다. 공용 한도에 도달하면 개인 잔여량이 있어도 실행이 제한됩니다. 한도는 UTC 기준으로 초기화되며 운영 설정에 따라 낮아질 수 있습니다. 실제 잔여량은 사용량 화면을 확인하세요.
 
 검색 관측 저장과 GA4 기준 자료 가져오기는 AI 호출 한도를 사용하지 않습니다. 외부 검색 서비스의 기능과 이용 한도는 각 서비스에 따릅니다. 운영자가 OpenAI를 활성화하면 GPT-6.1 Terra로 답변을 수집하고 문서와 AI 분석을 생성합니다. Gemini는 별도 수집 모델로 유지합니다. 수집 실패 시 다른 모델로 자동 전환하거나 답변의 모델명을 바꾸지 않습니다. 이용자 한도는 그대로 적용됩니다.
 
 대한민국에서 이용하는 만 18세 이상의 업무 사용자를 대상으로 합니다. 공개된 업무 정보만 입력하세요. 무료 Gemini의 입력과 응답은 Google의 제품 개선과 인적 검토에 사용될 수 있으므로 개인정보, 민감정보와 기밀정보는 입력하지 마세요.
 
-[이용 안내](https://lumen-ai-visibility.khyun97.chatgpt.site/terms)와 [개인정보 처리 안내](https://lumen-ai-visibility.khyun97.chatgpt.site/privacy)를 함께 확인해 주세요.
+[이용 안내](https://lumen-nine-rose.vercel.app/terms)와 [개인정보 처리 안내](https://lumen-nine-rose.vercel.app/privacy)를 함께 확인해 주세요.
 
 ## 기록을 관리하는 방식
 
@@ -75,7 +76,8 @@ React 19, TypeScript와 Next.js App Router를 사용합니다. Vercel Node.js 22
 | `app/` | 공개 페이지, 대시보드와 API 경로 |
 | `components/` | 화면과 공통 UI |
 | `lib/` | 지표 계산, 제공자 연결, 수집기와 데이터 처리 |
-| `drizzle/` | 데이터베이스 스키마 변경 |
+| `drizzle/` | 데이터베이스 스키마 변경 (워크스페이스 백업이 체크섬으로 고정) |
+| `migrations/` | 백업 대상이 아닌 테이블: 계정 연결, 에이전트 실행 기록 |
 | `tests/` | 지표, 접근 제어, 수집과 복구 검증 |
 
 ### 개발 및 검증
@@ -97,15 +99,16 @@ API 키, OAuth 자격 증명, `.env` 파일과 사용자 백업은 저장소에 
 
 ---
 
-Lumen의 기능과 이용 조건은 [서비스 소개](https://lumen-ai-visibility.khyun97.chatgpt.site/)와 [시작 가이드](https://lumen-ai-visibility.khyun97.chatgpt.site/guides/free-ai-brand-tracking)에서 확인할 수 있습니다.
+Lumen의 기능과 이용 조건은 [서비스 소개](https://lumen-nine-rose.vercel.app/)와 [시작 가이드](https://lumen-nine-rose.vercel.app/guides/free-ai-brand-tracking)에서 확인할 수 있습니다.
 
 ## AI 제공자 설정
 
-로컬 개발 키는 Git에서 제외되는 `.env.local`의 `OPENAI_API_KEY`, `GEMINI_API_KEY`에 설정합니다. 운영은 Vercel Production 환경 변수에 같은 이름으로 등록하고 재배포합니다. `.env.example`에는 변수명과 용도만 제공합니다. 키를 소스나 업로드 파일에 넣지 마세요.
+로컬 개발 키는 Git에서 제외되는 `.env.local`의 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`에 설정합니다. 운영은 Vercel Production 환경 변수에 같은 이름으로 등록하고 재배포합니다. `.env.example`에는 변수명과 용도만 제공합니다. 키를 소스나 업로드 파일에 넣지 마세요.
 
 - 기본 설정은 `LUMEN_PROVIDER_MODE=free_only`이며 Gemini만 호출합니다.
-- 운영자가 `LUMEN_PROVIDER_MODE=paid_enabled`를 명시하면 연결된 OpenAI를 활성화합니다. 문서, 질문 제안, AI 분석 기본 생성 모델은 `gpt-6.1-terra`입니다. 유료 제공자 비용은 운영자의 API 프로젝트에 청구됩니다.
+- 운영자가 `LUMEN_PROVIDER_MODE=paid_enabled`를 명시하면 연결된 Claude와 OpenAI를 활성화합니다. 에이전트, 문서, 질문 제안, AI 분석은 연결된 모델 중 `claude-opus-5-5`, `gpt-6.1-terra`, Gemini 순으로 사용합니다.
+- Claude 답변 수집은 웹 검색을 사용하고 제공자가 표시한 인용만 기록합니다. 측정 답변에는 대체 모델을 쓰지 않으며, 에이전트와 초안 작성 요청에만 서버 측 거절 대체(`fallbacks: "default"`)를 사용합니다. 에이전트는 Claude가 연결되어 있으면 답변을 직접 골라 읽는 도구 호출 방식으로, 그렇지 않으면 미리 고른 근거로 한 번에 작성합니다. 모델 요청이 실패하면 집계 기반 결과로 대신합니다. 유료 제공자 비용은 운영자의 API 프로젝트에 청구됩니다.
 - GPT는 기존 비추론 요청에 맞춰 `reasoning.effort=none`, 기존 기본 길이에 맞춰 `text.verbosity=medium`, Standard 처리와 `store=false`를 사용합니다. `store=false`가 ZDR를 보장하지는 않습니다.
 - 신규 GPT 수집은 GPT-6.1 Terra를 사용합니다. 과거 GPT-4.1 mini 자료와 합성 샘플은 원래 이름으로 조회하며, 과거 모델의 예약 수집은 새 모델로 직접 바꿔야 합니다.
-- Gemini 전체 요청 제한은 90초로 120초 작업 임대보다 짧습니다. 자동 재시도는 하지 않습니다. 호출 1회 예약이 외부 요청 1회를 뜻하는 기존 한도를 유지하고, 전달 여부가 불분명한 요청의 중복 과금을 방지합니다.
+- Gemini 전체 요청 제한은 90초로 120초 작업 임대보다 짧습니다. 모델 과부하(HTTP 503)는 생성이 이뤄지지 않은 명확한 거절이므로 1.5초 뒤 한 번만 다시 요청합니다. 시간 초과를 포함한 그 밖의 실패는 다시 요청하지 않아 전달 여부가 불분명한 요청의 중복 과금을 방지합니다.
 - `ai_provider_failure` 로그는 제공자, 모델, 분류 코드, upstream HTTP 상태와 소요 시간만 기록합니다. 키, 사용자 입력, 원문 오류와 응답 본문은 기록하지 않습니다.

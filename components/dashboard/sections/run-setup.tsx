@@ -22,7 +22,7 @@ export default function RunSetup({ state, busy, error, defaultModel, preferredPr
   const canRun = !busy && units > 0 && !usageUnavailable && (demo || units <= available);
   const workspaceQuery = `?site=${encodeURIComponent(state.site.id)}`;
 
-  return <Modal title={demo ? "샘플 답변 수집" : "답변 수집 설정"} subtitle={demo ? "생성된 샘플 데이터로 수집 과정을 체험할 수 있습니다. 실제 AI 사용량은 차감하지 않습니다." : "먼저 질문 하나와 모델 하나로 시작해 보세요. 모델별 웹 검색 지원 여부는 아래에서 확인할 수 있습니다."} onClose={onClose} dismissDisabled={busy} wide>
+  return <Modal title={demo ? "샘플 답변 수집" : "답변 수집 설정"} subtitle={demo ? "생성된 샘플 데이터로 수집 과정을 체험할 수 있어요. 실제 AI 사용량은 차감하지 않아요." : "먼저 질문 하나와 모델 하나로 시작해 보세요. 모델별 웹 검색 지원 여부는 아래에서 확인할 수 있어요."} onClose={onClose} dismissDisabled={busy} wide>
     <div className="d-form">
       <div className="d-form-row">
         <fieldset className="d-fieldset" disabled={busy}>
@@ -40,7 +40,7 @@ export default function RunSetup({ state, busy, error, defaultModel, preferredPr
           </label>) : <div><p className="d-muted">수집할 질문이 없어요. 질문을 추가하거나 기존 질문의 추적을 켜 주세요.</p><a className="d-text-link" href={`/dashboard/prompts${workspaceQuery}`}>질문 관리로 이동<ArrowRight size={16} /></a></div>}</div>
         </fieldset>
       </div>
-      <div className="d-rich-note"><Info size={18} /><span>{selectedPromptIds.length}개 질문 × {selectedModels.length}개 모델 = <strong>{units}개 답변</strong>. {demo ? "샘플 수집은 AI 사용량에 포함되지 않습니다." : usage.loading ? "남은 사용량을 확인하고 있어요." : usage.error ? "사용량을 확인한 뒤 수집을 시작할 수 있습니다." : usage.data ? `지금 ${available}회 사용할 수 있으며, 시작하면 ${units}회가 차감됩니다. 실패한 요청도 차감된 사용량은 복원되지 않습니다.` : "남은 사용량을 확인해 주세요."}</span></div>
+      <div className="d-rich-note"><Info size={18} /><span>{selectedPromptIds.length}개 질문 × {selectedModels.length}개 모델 = <strong>{units}개 답변</strong>. {demo ? "샘플 수집은 AI 사용량에 포함되지 않아요." : usage.loading ? "남은 사용량을 확인하고 있어요." : usage.error ? "사용량을 확인한 뒤 수집을 시작할 수 있어요." : usage.data ? `지금 ${available}회 사용할 수 있으며, 시작하면 ${units}회가 차감돼요. 실패한 요청도 차감된 사용량은 복원되지 않아요.` : "남은 사용량을 확인해 주세요."}</span></div>
       {!demo && !usageUnavailable && units > available && <div className="d-error" style={{ marginTop: 16 }} role="alert">{available === 0 ? "지금 사용할 수 있는 무료 요청이 없어요. 사용량 화면에서 내 한도와 서비스 공용 한도, 초기화 시간을 확인하세요." : `남은 사용량을 ${units - available}회 초과했어요. 질문이나 모델 수를 줄여 주세요.`}</div>}
       {!demo && !busy && <a className="d-text-link" href={`/dashboard/usage${workspaceQuery}`}>무료 사용량과 초기화 시간 확인<ArrowRight size={16} /></a>}
       {!demo && usage.error && <div className="d-error" style={{ marginTop: 16, flexWrap: "wrap" }} role="alert"><p style={{ flex: "1 1 180px", minWidth: 0 }}>{usage.error}</p><Button onClick={() => void usage.refresh()} disabled={busy} busy={usage.loading}>사용량 다시 확인</Button></div>}

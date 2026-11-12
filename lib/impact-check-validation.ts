@@ -16,7 +16,7 @@ export const impactCheckPayloadSchema = z.object({
   context: impactPlanSchema.innerType().shape.context, indexingStatus: z.enum(['unconfirmed', 'confirmed']), indexingEvidence: z.string().trim().max(2000),
   observations: z.array(impactCheckObservationSchema).min(1).max(20),
 }).strict().superRefine((payload, context) => {
-  if (payload.indexingStatus === 'confirmed' && payload.indexingEvidence.length < 3) context.addIssue({ code: 'custom', path: ['indexingEvidence'], message: '검색 반영을 확인한 근거를 입력해 주세요. 입력한 근거는 사용자 보고이며 Lumen의 독립 검증은 아닙니다.' });
+  if (payload.indexingStatus === 'confirmed' && payload.indexingEvidence.length < 3) context.addIssue({ code: 'custom', path: ['indexingEvidence'], message: '검색 반영을 확인한 근거를 입력해 주세요. 입력한 근거는 사용자 보고이며 Lumen의 독립 검증은 아니에요.' });
   const seen = new Set<string>();
   payload.observations.forEach((row, i) => {
     const key = `${row.queryId}:${row.repetition}`;
@@ -35,7 +35,7 @@ export function assertImpactCheckMatchesBaselines(plan: Pick<ImpactPlan,'queries
   for (const row of payload.observations) {
     if (!plan.queries.some(query => query.id === row.queryId) || row.repetition > plan.repetitions) throw new ProductError(400, '검증 계획에 등록된 질문과 회차로 점검해 주세요.', 'impact_cohort_mismatch');
     const baseline = baselines.find(candidate => candidate.digest === row.baselineDigest && candidate.phase === 'before' && candidate.queryId === row.queryId && candidate.repetition === row.repetition && (allowVoided || !candidate.voidedAt));
-    if (!baseline) throw new ProductError(409, '연결할 변경 전 기록이 없거나 제외되었습니다. 현재 기준 기록을 확인해 주세요.', 'impact_check_baseline_unavailable');
+    if (!baseline) throw new ProductError(409, '연결할 변경 전 기록이 없거나 제외됐어요. 현재 기준 기록을 확인해 주세요.', 'impact_check_baseline_unavailable');
     const baselineAt = Date.parse(baseline.observedAt), observed = Date.parse(row.observedAt);
     if (![baselineAt,observed].every(Number.isFinite) || baselineAt >= published || published > observed || observed > timestamp) throw new ProductError(400, '기준 기록 다음에 배포하고 배포 이후에 관측한 실제 시각을 입력해 주세요. 미래의 관측은 저장할 수 없어요.', 'impact_check_time');
   }

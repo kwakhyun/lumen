@@ -45,6 +45,6 @@ export default function OverviewScope({ metrics, answers, scope, filters }: { me
         <div className="d-overview-scope-recent"><dt>최근 완료 답변</dt><dd>{latest ? <><time dateTime={latest.at}>{timestamp}</time><span className="d-overview-timezone">KST{latest.collectedAtFallback ? " / 수집 시각" : ""}</span></> : has ? "수집 시각 기록 없음" : "이 조건에서 완료한 답변 없음"}</dd></div>
       </dl>
     </div>
-    {metrics.dataMode === "demo" ? <p className="d-overview-measurement-note">합성 샘플 답변 기준입니다. 실제 수집 성과가 아닙니다.</p> : has && metrics.citationRate === null ? <p className="d-overview-measurement-note">웹 검색 인용을 제공하지 않는 API 일반 응답 기준입니다.</p> : null}
+    {metrics.dataMode === "demo" ? <p className="d-overview-measurement-note">합성 샘플 답변 기준이에요. 실제 수집 성과가 아니에요.</p> : has && metrics.citationRate === null ? <p className="d-overview-measurement-note">웹 검색 인용을 제공하지 않는 API 일반 응답 기준이에요.</p> : null}
   </div>;
 }

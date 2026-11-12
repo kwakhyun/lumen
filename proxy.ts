@@ -6,6 +6,8 @@ export function proxy(request: NextRequest) {
   const headers=secured.request.headers;
   // These headers were trusted only behind Sites' authentication gateway.
   for(const key of [...headers.keys()])if(key.startsWith('oai-authenticated-'))headers.delete(key);
+  // Trusted copies for server code that has no Request object (guest read-only check).
+  headers.set('x-lumen-method',request.method);headers.set('x-lumen-path',request.nextUrl.pathname);
   let policy=secured.policy;
   if(request.nextUrl.pathname==='/sign-in')policy=policy.replace("form-action 'self'","form-action 'self' https://accounts.google.com");
   if(process.env.NODE_ENV==='development')policy=policy.replace("script-src 'self'", "script-src 'self' 'unsafe-eval'");
@@ -19,4 +21,4 @@ export function proxy(request: NextRequest) {
   if(!request.nextUrl.pathname.startsWith('/api/')){response.headers.set('Cache-Control','private, no-store');response.headers.set('CDN-Cache-Control','no-store');}
   return response;
 }
-export const config={matcher:['/((?!_next/static|_next/image|favicon.svg|product-preview.jpg).*)']};
+export const config={matcher:['/((?!_next/static|_next/image|favicon.svg|product-preview.jpg|og-image.jpg).*)']};

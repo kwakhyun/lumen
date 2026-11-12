@@ -34,7 +34,7 @@ export async function createImpact(ownerId: string, raw: z.infer<typeof impactPo
   if (site.mode !== 'live') throw new ProductError(409, '실제 브랜드 워크스페이스에서 검증 계획을 등록해 주세요.', 'impact_live_required');
   if (input.action === 'create_study') {
     const [previous] = await db.select().from(impactStudies).where(eq(impactStudies.id, input.requestId)).limit(1);
-    if (previous) { if (previous.siteId !== site.id || previous.plan !== JSON.stringify(input.plan)) throw new ProductError(409, '이미 사용한 요청 ID입니다. 새 요청으로 다시 시도해 주세요.', 'impact_request_conflict'); return detail(site.id, previous.id); }
+    if (previous) { if (previous.siteId !== site.id || previous.plan !== JSON.stringify(input.plan)) throw new ProductError(409, '이미 사용한 요청 ID예요. 새 요청으로 다시 시도해 주세요.', 'impact_request_conflict'); return detail(site.id, previous.id); }
     const brand = { name: site.name, domain: site.domain }, digest = await impactDigest({ metricVersion: IMPACT_METRIC_VERSION, plan: input.plan, brand });
     const budget = withinByteBudget('impact_studies', site.id, { id: input.requestId, site_id: site.id, plan: JSON.stringify(input.plan), brand: JSON.stringify(brand), metric_version: IMPACT_METRIC_VERSION, created_at: date, digest });
     await db.run(sql`INSERT OR IGNORE INTO impact_studies (id,site_id,plan,brand,metric_version,created_at,digest) SELECT ${input.requestId},${site.id},${JSON.stringify(input.plan)},${JSON.stringify(brand)},${IMPACT_METRIC_VERSION},${date},${digest} WHERE (SELECT count(*) FROM impact_studies WHERE site_id=${site.id}) < 50 AND ${budget}`);
@@ -50,14 +50,14 @@ export async function createImpact(ownerId: string, raw: z.infer<typeof impactPo
     await db.run(sql`INSERT OR IGNORE INTO impact_searches (id,site_id,study_id,phase,query_id,repetition,payload,created_at,digest) SELECT ${input.requestId},${site.id},${study.id},${input.observation.phase},${input.observation.queryId},${input.observation.repetition},${payloadJson},${date},${digest} WHERE (SELECT count(*) FROM impact_searches WHERE site_id=${site.id}) < 5000 AND ${budget}`);
     const [saved] = await db.select().from(impactSearches).where(eq(impactSearches.id, input.requestId)).limit(1);
     if (!saved) throw new ProductError(409, '같은 질문, 기간, 회차의 관측이 이미 있거나 저장 한도에 도달했어요. 검색 기록은 최대 5,000개, 제외 사유 보존 공간을 포함해 3 MiB까지 저장할 수 있어요. 기존 기록을 확인해 주세요.', 'impact_duplicate_or_limit');
-    if (saved.siteId !== site.id || saved.studyId !== study.id || saved.payload !== payloadJson) throw new ProductError(409, '이미 사용한 요청 ID입니다.', 'impact_request_conflict');
+    if (saved.siteId !== site.id || saved.studyId !== study.id || saved.payload !== payloadJson) throw new ProductError(409, '이미 사용한 요청 ID예요.', 'impact_request_conflict');
   } else {
     assertOutcomeMatchesPlan(study.plan, input.outcome);
     const budget = withinByteBudget('impact_outcomes', site.id, { id: input.requestId, site_id: site.id, study_id: study.id, arm: input.outcome.arm, phase: input.outcome.phase, payload: payloadJson, created_at: date, digest, voided_at: null, void_reason: null });
     await db.run(sql`INSERT OR IGNORE INTO impact_outcomes (id,site_id,study_id,arm,phase,payload,created_at,digest) SELECT ${input.requestId},${site.id},${study.id},${input.outcome.arm},${input.outcome.phase},${payloadJson},${date},${digest} WHERE (SELECT count(*) FROM impact_outcomes WHERE site_id=${site.id}) < 1000 AND ${budget}`);
     const [saved] = await db.select().from(impactOutcomes).where(eq(impactOutcomes.id, input.requestId)).limit(1);
     if (!saved) throw new ProductError(409, '같은 대상과 기간의 성과가 이미 있거나 저장 한도에 도달했어요. 성과 기록은 최대 1,000개, 제외 사유 보존 공간을 포함해 1 MiB까지 저장할 수 있어요. 기존 기록을 확인해 주세요.', 'impact_duplicate_or_limit');
-    if (saved.siteId !== site.id || saved.studyId !== study.id || saved.payload !== payloadJson) throw new ProductError(409, '이미 사용한 요청 ID입니다.', 'impact_request_conflict');
+    if (saved.siteId !== site.id || saved.studyId !== study.id || saved.payload !== payloadJson) throw new ProductError(409, '이미 사용한 요청 ID예요.', 'impact_request_conflict');
   }
   return detail(site.id, study.id);
 }

@@ -183,7 +183,7 @@ test('GPT-6.1 requests preserve workload controls and never collect commentary o
   } finally { delete env.OPENAI_API_KEY; globalThis.fetch = noNetwork; }
 });
 
-test('Gemini failures distinguish capacity, permissions and quota without secrets, retries or fallback', async () => {
+test('Gemini failures distinguish capacity, permissions and quota without secrets or fallback, and repeat only an overloaded request once', async () => {
   const env=globalThis.__providerFixtureEnv; env.GEMINI_API_KEY='fixture-key-must-not-leak';
   const previousWarn=console.warn, previousTimeout=AbortSignal.timeout, events=[]; let calls=0;
   console.warn = event => events.push(JSON.parse(event));
@@ -194,7 +194,8 @@ test('Gemini failures distinguish capacity, permissions and quota without secret
       await assert.rejects(()=>askGemini('private prompt'),e=>e.code===code&&e.message.includes(`HTTP ${status}`)&&!e.message.includes('private'));
       assert.equal(events.at(-1).upstreamStatus,status);
     }
-    assert.equal(calls,6); assert.ok(events.every(e=>e.event==='ai_provider_failure'&&e.model===GEMINI_MODEL));
+    // HTTP 503 is a definite rejection and is sent twice; every other status is sent once.
+    assert.equal(calls,7); assert.ok(events.every(e=>e.event==='ai_provider_failure'&&e.model===GEMINI_MODEL));
     assert.doesNotMatch(JSON.stringify(events),/fixture-key|private prompt/);
   } finally { console.warn=previousWarn;AbortSignal.timeout=previousTimeout;delete env.GEMINI_API_KEY;globalThis.fetch=noNetwork; }
 });

@@ -52,7 +52,7 @@ const canonicalDomain = (domain: string) => domain.toLowerCase().replace(/^www\.
 
 /** These collection adapters request web search. Unknown adapters fail closed. */
 export function citationMeasurementAvailable(answer: Pick<Answer, 'mode' | 'model'>): boolean {
-  return answer.mode === 'demo' || (answer.mode === 'live' && ['gpt-4.1-mini', 'gpt-6.1-terra', 'perplexity/sonar'].includes(answer.model));
+  return answer.mode === 'demo' || (answer.mode === 'live' && ['gpt-4.1-mini', 'gpt-6.1-terra', 'perplexity/sonar', 'claude-opus-5-5'].includes(answer.model));
 }
 
 /** Do not promote generated URLs, synthetic live citations, or mismatched hosts into evidence. */

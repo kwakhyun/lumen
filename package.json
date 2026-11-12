@@ -18,6 +18,7 @@
     "test:sqlite": "npm test"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "@base-ui/react": "^1.7.0",
     "@hookform/resolvers": "^5.7.1",
     "@libsql/client": "0.18.0",

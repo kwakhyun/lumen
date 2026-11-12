@@ -2,6 +2,7 @@ import { requireChatGPTUser } from "@/app/chatgpt-auth";
 import { readDashboardScope } from "@/lib/dashboard-scope";
 import Dashboard from "@/components/dashboard/dashboard";
 import "@/app/dashboard.css";
+import "@/components/dashboard/refresh.css";
 
 export const dynamic = "force-dynamic";
 
@@ -25,5 +26,5 @@ export default async function DashboardPage({
   if (typeof query.prompt === "string" && /^[a-f0-9-]{36}$/i.test(query.prompt)) safeQuery.set("prompt", query.prompt);
   const returnTo = `${path}${safeQuery.size ? `?${safeQuery}` : ""}`;
   const user = await requireChatGPTUser(returnTo);
-  return <Dashboard user={{ name: user.displayName, email: user.email }} initialSection={route.path?.[0] || "overview"} initialScope={scope} />;
+  return <Dashboard user={{ name: user.displayName, email: user.email, guest: user.guest }} initialSection={route.path?.[0] || "overview"} initialScope={scope} />;
 }

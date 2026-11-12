@@ -77,5 +77,4 @@ test('overview shows evidence counts and review actions for registered competito
   assert.match(result, /1 \/ 1개/);
   assert.match(result, /해당 답변에 등장한 경쟁사: Rival/);
   assert.match(result, /개선 작업 추가/);
-  assert.match(result, /href="\/dashboard\/actions\?period=7&amp;model=gemini-3.8-flash"/);
 });

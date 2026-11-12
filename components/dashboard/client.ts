@@ -11,10 +11,11 @@ const errorCopy: Record<string, string> = {
   ga4_not_connected: "Google Analytics를 먼저 연결해 주세요.",
   integration_busy: "다른 연결 작업을 처리하고 있어요. 잠시 후 다시 시도해 주세요.",
   unauthenticated: "로그인이 필요해요. 로그인한 뒤 다시 시도하세요.",
+  demo_read_only: "샘플은 읽기 전용이에요. 로그인하면 내 워크스페이스에서 저장할 수 있어요.",
   provider_unavailable: "현재 이 AI 모델을 사용할 수 없어요. 연결 관리에서 사용 가능한 모델을 확인하세요.",
   paid_provider_disabled: "현재 무료 서비스에서는 Gemini만 사용할 수 있어요. 유료 AI 모델의 호출은 차단돼요.",
   provider_network_error: "AI 제공자와 연결하지 못했거나 응답 시간이 초과됐어요. 이 답변은 수집되지 않았어요.",
-  provider_timeout: "AI 제공자의 응답 시간이 초과됐어요. 결과는 저장되지 않았으며, 자동으로 중복 요청하지 않습니다. 잠시 후 다시 시도해 주세요.",
+  provider_timeout: "AI 제공자의 응답 시간이 초과됐어요. 결과는 저장되지 않았으며, 자동으로 중복 요청하지 않아요. 잠시 후 다시 시도해 주세요.",
   provider_overloaded: "AI 제공자가 일시적인 서버 오류를 반환했어요. 잠시 후 다시 시도해 주세요. 이 오류만으로 API 키를 교체할 필요는 없어요.",
   provider_access_denied: "AI 제공자가 인증이나 프로젝트 접근을 거부했어요. 운영자가 키, 모델 권한과 결제 상태를 확인해야 해요.",
   provider_model_unavailable: "설정된 AI 모델에 접근할 수 없어요. 운영자가 모델 이름과 프로젝트 권한을 확인해야 해요.",
@@ -124,4 +125,31 @@ export function useResource<T>(path: string) {
   return { data: isCurrentPath ? resource.data : null, loading: !isCurrentPath || resource.loading, error: isCurrentPath ? resource.error : "", refresh, setData };
 }
 export function localDateTime(iso: string | null | undefined) { return iso ? new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(iso)) : "기록 없음"; }
-export function modelLabel(id: string) { return ({ "gpt-6.1-terra": "GPT-6.1 Terra", "gpt-4.1-mini": "GPT-4.1 mini", "gemini-2.5-flash": "Gemini 2.5 Flash", "gemini-3.8-flash": "Gemini 3.8 Flash", "perplexity/sonar": "Perplexity Sonar", "sonar": "Perplexity Sonar", "demo-gemini": "Gemini 샘플", "demo-perplexity": "Perplexity 샘플" } as Record<string,string>)[id] || id; }
+export function modelLabel(id: string) { return ({ "gpt-6.1-terra": "GPT-6.1 Terra", "claude-opus-5-5": "Claude Opus 5.5", "gpt-4.1-mini": "GPT-4.1 mini", "gemini-2.5-flash": "Gemini 2.5 Flash", "gemini-3.8-flash": "Gemini 3.8 Flash", "perplexity/sonar": "Perplexity Sonar", "sonar": "Perplexity Sonar", "demo-gemini": "Gemini 샘플", "demo-perplexity": "Perplexity 샘플" } as Record<string,string>)[id] || id; }
+/** One Korean format for timestamps across lists, readers and histories. */
+export function shortDateTime(iso: string | null | undefined) { return iso ? new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso)) : "—"; }
+export function relativeTime(iso: string, now = Date.now()) {
+  const minutes = Math.round((now - Date.parse(iso)) / 60000);
+  if (!Number.isFinite(minutes)) return "";
+  if (minutes < 1) return "방금";
+  if (minutes < 60) return `${minutes}분 전`;
+  if (minutes < 60 * 24) return `${Math.round(minutes / 60)}시간 전`;
+  return `${Math.round(minutes / 60 / 24)}일 전`;
+}
+/** POST that answers with newline-delimited JSON events. Errors before the stream starts use the normal error body. */
+export async function streamEvents<T>(path: string, body: unknown, onEvent: (event: T) => void, options: { signal?: AbortSignal } = {}): Promise<void> {
+  const response = await fetch(path, { method: "POST", cache: "no-store", signal: options.signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!response.ok || !response.body) {
+    let payload: { error?: string; code?: string } = {};
+    try { payload = await response.json() as typeof payload; } catch { /* not JSON */ }
+    const error = new Error(errorCopy[payload.code || ""] || payload.error || "요청을 처리하지 못했어요.") as RequestError; error.code = payload.code; throw error;
+  }
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let buffer = "";
+  const flush = (final: boolean) => {
+    const lines = buffer.split("\n"); buffer = final ? "" : lines.pop() || "";
+    for (const line of lines) { if (!line.trim()) continue; try { onEvent(JSON.parse(line) as T); } catch { /* skip a malformed line */ } }
+  };
+  for (;;) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); flush(false); }
+  buffer += decoder.decode(); flush(true);
+}

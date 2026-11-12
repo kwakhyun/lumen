@@ -7,8 +7,8 @@ import { importSnapshot, tableDigest, verifySnapshot } from '../scripts/import-s
 test('schema migrations are repeatable and reject a changed checksum', async () => {
   const client = createClient({ url: 'file::memory:' });
   try {
-    assert.deepEqual(await migrateDatabase(client), { applied: 9, total: 9 });
-    assert.deepEqual(await migrateDatabase(client), { applied: 0, total: 9 });
+    assert.deepEqual(await migrateDatabase(client), { applied: 10, total: 10 });
+    assert.deepEqual(await migrateDatabase(client), { applied: 0, total: 10 });
     await client.execute("UPDATE _lumen_schema_migrations SET sha256='changed' WHERE name='migrations/auth/0001_identity_links.sql'");
     await assert.rejects(migrateDatabase(client), /checksum/);
   } finally { client.close(); }

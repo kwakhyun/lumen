@@ -1,33 +1,40 @@
-/* Lumen / Quiet Intelligence. Shared semantic tokens; no page-specific colors. */
+/* Lumen design tokens. Semantic roles only; pages never name raw colors. */
 :root {
   --lumen-bg: #ffffff;
   --lumen-surface: #ffffff;
-  --lumen-canvas: #f7f8fa;
-  --lumen-ink: #151c29;
-  --lumen-secondary: #344054;
-  --lumen-muted: #667085;
-  --lumen-disabled: #98a2b3;
-  --lumen-accent: #155eef;
-  --lumen-accent-hover: #004eeb;
-  --lumen-accent-soft: #eff5ff;
-  --lumen-border: #e5e9f0;
-  --lumen-border-strong: #cdd4df;
-  --lumen-success: #067647;
-  --lumen-success-soft: #ecfdf3;
-  --lumen-warning: #8b5700;
-  --lumen-warning-soft: #fffaeb;
-  --lumen-danger: #b42318;
-  --lumen-danger-soft: #fef3f2;
-  --lumen-violet: #6941c6;
-  --lumen-violet-soft: #f4f3ff;
-  --lumen-chart-1: #155eef;
-  --lumen-chart-2: #5279a8;
-  --lumen-chart-3: #7e64b0;
-  --lumen-chart-4: #ad7a35;
-  --lumen-chart-5: #3e9184;
+  --lumen-canvas: #f6f6f8;
+  --lumen-sidebar: #fafafb;
+  --lumen-ink: #17171c;
+  --lumen-secondary: #3d3d47;
+  --lumen-muted: #6b6b77;
+  --lumen-disabled: #a3a3ae;
+  --lumen-accent: #5552e0;
+  --lumen-accent-hover: #4541cf;
+  --lumen-accent-soft: #efeffe;
+  --lumen-on-accent: #ffffff;
+  --lumen-border: #e7e7ec;
+  --lumen-border-strong: #d3d3db;
+  --lumen-hover: #f1f1f4;
+  --lumen-success: #17794a;
+  --lumen-success-soft: #e8f6ee;
+  --lumen-warning: #8f5f00;
+  --lumen-warning-soft: #fdf3d7;
+  --lumen-danger: #c0271f;
+  --lumen-danger-soft: #fdecea;
+  --lumen-danger-border: #f3c3be;
+  --lumen-violet: #7a3fe0;
+  --lumen-violet-soft: #f3eefe;
+  --lumen-chart-1: #5552e0;
+  --lumen-chart-2: #0f9d94;
+  --lumen-chart-3: #d98a09;
+  --lumen-chart-4: #d6409f;
+  --lumen-chart-5: #5f6b7c;
+  /* One gradient marks surfaces where an agent is at work. */
+  --lumen-ai-gradient: linear-gradient(120deg, #5552e0 0%, #8b5cf6 52%, #d6409f 100%);
+  --lumen-scrim: rgb(18 18 24 / 42%);
   --lumen-radius-sm: 6px;
-  --lumen-radius: 12px;
-  --lumen-radius-lg: 20px;
+  --lumen-radius: 10px;
+  --lumen-radius-lg: 14px;
   --lumen-space-1: 4px;
   --lumen-space-2: 8px;
   --lumen-space-3: 12px;
@@ -36,11 +43,51 @@
   --lumen-space-6: 32px;
   --lumen-space-7: 48px;
   --lumen-space-8: 64px;
-  --lumen-font-body: 16px;
-  --lumen-font-label: 14px;
+  --lumen-font-body: 14px;
+  --lumen-font-label: 13px;
   --lumen-font-caption: 12px;
-  --lumen-line-body: 1.65;
-  --lumen-control-height: 44px;
-  --lumen-shadow: 0 16px 48px rgb(16 24 40 / 12%);
-  --lumen-motion-fast: 160ms;
+  --lumen-line-body: 1.6;
+  --lumen-control-height: 36px;
+  --lumen-shadow: 0 16px 40px rgb(18 18 24 / 14%), 0 2px 6px rgb(18 18 24 / 6%);
+  --lumen-shadow-sm: 0 1px 2px rgb(18 18 24 / 5%);
+  --lumen-motion-fast: 140ms;
+  --lumen-font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+/* Touch targets stay at 44px wherever the primary pointer is a finger. */
+@media (pointer: coarse) { :root { --lumen-control-height: 44px; } }
+
+.d-shell[data-theme="dark"] {
+  --lumen-bg: #0f0f12;
+  --lumen-surface: #16161a;
+  --lumen-canvas: #1c1c21;
+  --lumen-sidebar: #0b0b0d;
+  --lumen-ink: #ededf1;
+  --lumen-secondary: #c7c7d0;
+  --lumen-muted: #8f8f9b;
+  --lumen-disabled: #5d5d68;
+  --lumen-accent: #8482f5;
+  --lumen-accent-hover: #9896f8;
+  --lumen-accent-soft: rgb(132 130 245 / 15%);
+  --lumen-on-accent: #0f0f12;
+  --lumen-border: #27272d;
+  --lumen-border-strong: #36363e;
+  --lumen-hover: #202026;
+  --lumen-success: #52d08a;
+  --lumen-success-soft: rgb(82 208 138 / 13%);
+  --lumen-warning: #f0b93a;
+  --lumen-warning-soft: rgb(240 185 58 / 13%);
+  --lumen-danger: #f37d74;
+  --lumen-danger-soft: rgb(243 125 116 / 13%);
+  --lumen-danger-border: rgb(243 125 116 / 35%);
+  --lumen-violet: #b08cff;
+  --lumen-violet-soft: rgb(176 140 255 / 15%);
+  --lumen-chart-1: #8482f5;
+  --lumen-chart-2: #3ecfc4;
+  --lumen-chart-3: #f0b93a;
+  --lumen-chart-4: #ee6fbe;
+  --lumen-chart-5: #9aa5b5;
+  --lumen-scrim: rgb(0 0 0 / 62%);
+  --lumen-shadow: 0 18px 44px rgb(0 0 0 / 55%), 0 0 0 1px rgb(255 255 255 / 4%);
+  --lumen-shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+  color-scheme: dark;
 }

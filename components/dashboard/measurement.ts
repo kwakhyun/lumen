@@ -10,3 +10,6 @@ export function providerLabel(provider: ProviderStatus): string {
   if (provider.available && provider.configured) return "사용 가능";
   return provider.configured ? "현재 제공하지 않음" : "미연결";
 }
+
+/** The one collection model that answers without web search or citations. */
+export const GEMINI_MODEL_ID = "gemini-3.8-flash";

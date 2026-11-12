@@ -16,10 +16,10 @@ turso dev --db-file local.db
 
 ```sh
 npm run db:migrate
-npm run dev -- --hostname 127.0.0.1
+npm run dev
 ```
 
-주소는 `http://127.0.0.1:3000`입니다. 마이그레이션은 적용 이력과 SHA-256을 기록하며 재실행 시 이미 적용한 파일을 건너뜁니다. 적용한 SQL 파일은 수정하지 말고 새 파일을 추가하세요. 기존 8개 스키마에 Google 계정 소유권 연결 테이블을 더합니다.
+주소는 `http://localhost:3000`입니다. 개발 서버는 요청 주소를 `localhost`로 보고하므로, `127.0.0.1`로 열면 저장 요청이 출처 검사(`invalid_origin`)에서 거절됩니다. 마이그레이션은 적용 이력과 SHA-256을 기록하며 재실행 시 이미 적용한 파일을 건너뜁니다. 적용한 SQL 파일은 수정하지 말고 새 파일을 추가하세요. `drizzle/`의 8개 스키마 뒤에 `migrations/auth`(Google 계정 소유권 연결)와 `migrations/agents`(에이전트 실행 기록)를 순서대로 적용합니다. 뒤의 두 디렉터리는 워크스페이스 백업의 체크섬 목록에 포함되지 않습니다. 에이전트 테이블이 아직 없는 배포에서도 에이전트는 실행되며, 실행 기록만 저장되지 않습니다.
 
 ## 로그인과 비밀 변수
 
@@ -30,7 +30,7 @@ npm run dev -- --hostname 127.0.0.1
 | Turso DB | `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` |
 | Google 로그인 | `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_SECRET`, `AUTH_URL` |
 | 기존 계정 연결 | `AUTH_LEGACY_OWNER_MAP` |
-| AI 제공자 | `OPENAI_API_KEY`, `GEMINI_API_KEY`, 선택적 `PERPLEXITY_API_KEY` |
+| AI 제공자 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, 선택적 `PERPLEXITY_API_KEY` |
 | 서비스 주소 | `APP_BASE_URL` |
 | GA4 OAuth | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 | 기존 GA4 암호화 | `INTEGRATION_ENCRYPTION_KEY`, 선택적 이전 키 `INTEGRATION_ENCRYPTION_KEY_PREVIOUS` |
@@ -39,10 +39,12 @@ npm run dev -- --hostname 127.0.0.1
 Google OAuth의 웹 애플리케이션 클라이언트에 다음 승인된 리디렉션 URI를 등록합니다.
 
 - 운영 로그인: `https://lumen-nine-rose.vercel.app/api/auth/callback/google`
-- 로컬 로그인: `http://127.0.0.1:3000/api/auth/callback/google`
+- 로컬 로그인: `http://localhost:3000/api/auth/callback/google`
 - GA4: 기존 `app/api/integrations/ga4/callback` 경로를 사용하며 실제 리디렉션 URI는 `APP_BASE_URL` 기준으로 구성합니다.
 
 `AUTH_SECRET`은 충분히 긴 무작위 비밀입니다. `AUTH_LEGACY_OWNER_MAP`은 인증된 기존 이메일과 과거 소유자 ID를 연결하는 서버 전용 JSON이며 사용자 입력으로 구성하지 않습니다. 최초 로그인 후에는 Google subject와 소유자 ID의 고정 연결을 사용합니다. 임의의 `oai-authenticated-*` 헤더는 인증으로 인정하지 않습니다. 로컬 환경도 실제 Google 로그인을 사용합니다.
+
+`/demo`는 로그인 없이 공용 샘플 워크스페이스를 엽니다. 방문자는 `lumen_guest` 쿠키로 식별되는 읽기 전용 게스트이며, 조회 요청과 샘플 에이전트 실행, 샘플 질문 응답만 허용됩니다(`lib/auth/guest.ts`). 공용 샘플은 3일이 지나면 다음 방문 때 새로 만들어집니다.
 
 GA4 연결을 보존하려면 이전 운영의 암호화 키를 그대로 옮겨야 합니다. 새 키로 덮어쓰면 저장된 refresh token을 읽을 수 없습니다.
 
@@ -56,6 +58,16 @@ npm run build
 ```
 
 DB 통합 검사는 각 테스트에 별도의 Turso HTTP 서버를 띄웁니다. 인증 단위 검사는 서명 없는 요청, 위조 헤더, 클라이언트의 소유권 변경, 미확인 이메일과 중복 계정 연결을 검사합니다. 기존 업무 로직 테스트만 전용 인증 fixture를 사용하며 이 파일은 배포에서 제외됩니다.
+
+## 화면 구성과 디자인 기준
+
+- 소개 페이지는 `app/page.tsx`와 `app/home.css`, `components/landing/`에 있습니다. 가이드, 측정 방법, 정책 페이지는 `app/landing.css`를 씁니다.
+- 소개 페이지 서체(Hahmlet, Instrument Serif, JetBrains Mono)는 `next/font`가 빌드 때 내려받아 같은 출처에서 제공합니다. CSP의 `font-src 'self'`를 지키기 위한 구성이므로 외부 글꼴 링크를 추가하지 않습니다. 빌드 환경에서 Google Fonts에 접근할 수 있어야 합니다.
+- 소개 페이지의 움직임은 `components/landing/landing-motion.tsx`가 `data-reveal`, `data-count` 같은 속성을 찾아 붙입니다. 움직임 줄이기 설정에서는 실행하지 않으며, 스크립트 없이도 모든 내용이 보입니다.
+- 로고는 `components/lumen-mark.tsx` 하나에서 그립니다. `public/favicon.svg`와 모양을 맞춰 둡니다.
+- 화면 문구는 해요체로 씁니다. 가이드와 정책 문서, AI 답변 예시는 예외입니다.
+- 터치 화면에서 조작 요소는 44px 이상이어야 합니다(`components/dashboard/refresh.css`의 `pointer: coarse` 규칙). 한 화면에 채워진 버튼은 하나만 두고, 나머지는 `soft` 버튼을 씁니다.
+- `public/product-preview.jpg`(1440×1000)와 `public/og-image.jpg`(1200×630)는 샘플 워크스페이스 화면으로 만든 이미지입니다. 홈 화면이나 로고가 바뀌면 다시 만듭니다.
 
 ## 운영 데이터 이전
 

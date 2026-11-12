@@ -50,7 +50,7 @@
 .d-impact-form-steps li { display:flex; align-items:center; gap:8px; color:var(--lumen-muted); font-size:13px; }
 .d-impact-form-steps li>span { display:grid; place-items:center; border:1px solid var(--lumen-border); border-radius:50%; width:24px; height:24px; }
 .d-impact-form-steps [aria-current="step"] { color:var(--lumen-accent); font-weight:600; }
-.d-impact-form-steps [aria-current="step"]>span { background:var(--lumen-accent); color:white; border-color:var(--lumen-accent); }
+.d-impact-form-steps [aria-current="step"]>span { background:var(--lumen-accent); color:var(--lumen-on-accent); border-color:var(--lumen-accent); }
 .d-impact-query-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; margin-bottom:24px; }
 .d-impact-query-group { min-width:0; margin:0; padding:18px; border:1px solid var(--lumen-border); border-radius:10px; }
 .d-impact-query-group legend { font-size:15px; font-weight:600; padding:0 8px; }

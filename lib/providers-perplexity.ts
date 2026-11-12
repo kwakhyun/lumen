@@ -17,8 +17,8 @@ const count = (value: unknown) => typeof value === 'number' && Number.isSafeInte
 /** Only typed annotations or marker IDs resolved against provider search metadata count as citations. */
 export function parsePerplexityResponse(value: unknown): ProviderResult {
   const data = object(value);
-  if (data.status !== 'completed' || data.error || data.incomplete_details) throw new ProductError(502, 'Perplexity did not complete this response. Partial output is excluded from visibility metrics.', 'incomplete_provider_response');
-  if (data.model !== PERPLEXITY_MODEL) throw new ProductError(502, 'Perplexity returned a different model. This response was not collected under the requested model.', 'unexpected_provider_model');
+  if (data.status !== 'completed' || data.error || data.incomplete_details) throw new ProductError(502, 'Perplexity가 답변을 끝까지 생성하지 못했어요. 불완전한 답변은 지표에 포함하지 않아요.', 'incomplete_provider_response');
+  if (data.model !== PERPLEXITY_MODEL) throw new ProductError(502, '요청한 모델과 다른 모델이 응답해 수집하지 않았어요.', 'unexpected_provider_model');
   const output = Array.isArray(data.output) ? data.output.map(object) : [];
   const sources = new Map<number, { url: URL; title: string }>();
   const ambiguousIds = new Set<number>();
@@ -68,7 +68,7 @@ export function parsePerplexityResponse(value: unknown): ProviderResult {
     }
   }
   const text = texts.join('\n\n');
-  if (!text.trim()) throw new ProductError(502, 'Perplexity returned no answer text.', 'empty_provider_response');
+  if (!text.trim()) throw new ProductError(502, 'Perplexity가 답변 내용을 보내지 않았어요.', 'empty_provider_response');
   const usage = object(data.usage);
   return { text, citations, inputTokens: count(usage.input_tokens), outputTokens: count(usage.output_tokens), providerResponseId: typeof data.id === 'string' ? data.id : null };
 }
@@ -92,7 +92,7 @@ export async function askPerplexity(input: string, options: { instructions?: str
       redirect: 'manual', // workerd-compatible; non-2xx responses, including redirects, are rejected below.
     });
   } catch (error) {
-    throw new ProductError(502, error instanceof Error && /timeout|abort/i.test(error.name) ? 'Perplexity request timed out. This answer was not collected.' : 'Perplexity could not be reached. This answer was not collected.', 'provider_network_error');
+    throw new ProductError(502, error instanceof Error && /timeout|abort/i.test(error.name) ? 'Perplexity의 응답이 제한 시간 안에 오지 않았어요. 이 답변은 수집되지 않았어요.' : 'Perplexity에 연결하지 못했어요. 이 답변은 수집되지 않았어요.', 'provider_network_error');
   }
   if (!response.ok) {
     await response.body?.cancel();

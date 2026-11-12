@@ -28,7 +28,7 @@ export type Metrics = {
   sources: { domain: string; citations: number; url: string; title: string }[];
 };
 export type TrafficSummary = { totalVisits: number; aiVisits: number; sources: { source: string; visits: number }[]; pages: { path: string; visits: number }[]; series: { date: string; visits: number; aiVisits: number }[]; trackingEnabled: boolean; note: string };
-export type ProductUser = { userId: string; displayName: string; email: string; fullName: string | null };
+export type ProductUser = { userId: string; displayName: string; email: string; fullName: string | null; guest?: boolean };
 export type Bootstrap = { user: ProductUser; sites: Site[]; providers: ProviderStatus[] };
 export type SiteState = { dataWindow?: { days: number; answersReturned: number; totalAnswers: number; truncated: boolean }; site: Site; personas: Persona[]; prompts: Prompt[]; competitors: Competitor[]; runs: Run[]; answers: Answer[]; documents: Document[]; tasks: Task[]; traffic: TrafficSummary; metrics: Metrics; providers: ProviderStatus[] };
 export type ApiError = { error: string; code?: string; details?: unknown };

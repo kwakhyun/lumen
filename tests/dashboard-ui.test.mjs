@@ -67,7 +67,7 @@ test('TrendChart preserves elapsed time between irregular observations without i
   assert.equal(pointXs(html).length, 3);
   assert.ok(Math.abs((next - first) / (last - first) - 1 / 19) < 1e-10);
   assert.match(html, /3개 관측값/);
-  assert.match(html, /관측하지 않은 날짜는 0으로 채우지 않습니다/);
+  assert.match(html, /관측하지 않은 날짜는 0으로 채우지 않아요/);
   assert.equal((html.match(/<text[^>]+y="236"/g) || []).length, 2, 'nearby date labels do not overlap');
 });
 

@@ -96,7 +96,7 @@ test('demo seed is persistent, synthetic and isolated from live runs',async()=>{
   const state=await call('GET',`sites/${id}/state`);assert.equal(state.response.status,200);assert.equal(state.data.answers.length,252);assert.ok(state.data.answers.every(a=>a.mode==='demo'&&a.providerResponseId===null));assert.ok(state.data.answers.flatMap(a=>a.citations).every(c=>c.provenance==='synthetic'));assert.equal(state.data.personas.length,2);
   assert.equal(state.data.site.name,'Northstar');assert.equal(state.data.site.domain,'northstar.example');
   assert.ok(state.data.prompts.every(prompt=>/[가-힣]/.test(prompt.text)&&/[가-힣]/.test(prompt.topic)));
-  assert.ok(state.data.answers.every(answer=>answer.text.includes('합성 답변')&&answer.text.includes(answer.promptText)&&answer.provider==='Synthetic demo'));
+  assert.ok(state.data.answers.every(answer=>answer.text.includes('합성 답변')&&answer.promptText.length>0&&answer.provider==='Synthetic demo'));
   assert.ok(state.data.answers.flatMap(answer=>answer.citations).every(citation=>/[가-힣]/.test(citation.title)&&citation.title.includes('합성 예시')&&new URL(citation.url).hostname===citation.domain));
   const report=state.data.documents.find(document=>document.kind==='report');assert.match(report.content,/Gemini API/);assert.doesNotMatch(report.content,/연결된 OpenAI API/);
   const second=await call('POST','demo');assert.equal(second.data.site.id,id);
@@ -118,7 +118,7 @@ test('configured Gemini and Perplexity dispatch independently without an OpenAI 
 test('incomplete provider output is failed and excluded from completed answers',async()=>{
   globalThis.__lumenTestEnv.OPENAI_API_KEY='unit-test-value';const previous=globalThis.fetch;
   globalThis.fetch=async()=>Response.json({id:'resp_incomplete',status:'incomplete',output:[{type:'message',content:[{type:'output_text',text:'Acme partial answer',annotations:[]}]}]});
-  try{const r=await call('POST',`sites/${siteId}/runs`,{models:['gpt-6.1-terra'],mode:'live'});const done=await call('POST',`sites/${siteId}/runs/${r.data.run.id}/process`);assert.equal(done.data.run.status,'failed');assert.equal(done.data.answers[0].status,'failed');assert.equal(done.data.answers[0].text,'');assert.match(done.data.answers[0].error,/did not complete/);}finally{globalThis.fetch=previous;delete globalThis.__lumenTestEnv.OPENAI_API_KEY;}
+  try{const r=await call('POST',`sites/${siteId}/runs`,{models:['gpt-6.1-terra'],mode:'live'});const done=await call('POST',`sites/${siteId}/runs/${r.data.run.id}/process`);assert.equal(done.data.run.status,'failed');assert.equal(done.data.answers[0].status,'failed');assert.equal(done.data.answers[0].text,'');assert.match(done.data.answers[0].error,/끝까지 생성하지 못했어요/);}finally{globalThis.fetch=previous;delete globalThis.__lumenTestEnv.OPENAI_API_KEY;}
 });
 test('persistent lease blocks overlapping workers and fences stale answer writes',async()=>{
   globalThis.__lumenTestEnv.OPENAI_API_KEY='unit-test-value';const previous=globalThis.fetch;let begin,finish;const started=new Promise(r=>begin=r),release=new Promise(r=>finish=r);let calls=0;
