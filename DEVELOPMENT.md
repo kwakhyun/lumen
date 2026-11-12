@@ -73,6 +73,14 @@ node --env-file=.env.local scripts/import-sites-data.mjs --source=/secure/verifi
 
 연결된 팀은 `khyun`, 프로젝트는 `lumen`, 기본 운영 도메인은 `lumen-nine-rose.vercel.app`입니다. `vercel.json`은 Tokyo 리전과 API 실행 시간 300초를 지정합니다. 런타임은 Node.js 22입니다.
 
+### GitHub 자동 배포
+
+GitHub `kwakhyun/lumen` 저장소가 이 프로젝트에 연결되어 있습니다. `main`에 푸시하면 Vercel이 Production 환경변수로 빌드하고, 성공한 배포를 운영 도메인에 자동 반영합니다. 별도의 GitHub Actions 배포 토큰은 사용하지 않습니다.
+
+변경 전에 테스트와 타입 검사, 빌드를 실행하세요. 푸시 후에는 Vercel 배포의 Git 커밋이 해당 main 커밋과 일치하는지, 상태가 READY인지, 운영 도메인이 새 배포를 가리키는지 확인합니다. 환경변수와 DB는 저장소에 포함하지 않으며 Vercel에서 별도로 관리합니다.
+
+### 수동 검증 배포
+
 ```sh
 vercel link --scope khyun --project lumen
 # 환경 변수는 Vercel에 별도로 등록합니다. 키를 명령 인자나 로그에 넣지 않습니다.
