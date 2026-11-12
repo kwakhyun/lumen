@@ -5,7 +5,7 @@ export const GUEST_USER_ID = 'guest-demo';
 export const GUEST_SITE_ID = 'd0000000-0000-4000-8000-000000000001';
 
 /** The only non-GET requests a guest may make: both answer from sample data and store nothing. */
-const GUEST_POST = /^\/api\/sites\/[0-9a-f-]{36}\/(?:assistant|agents)$/i;
+const GUEST_POST = /^\/api\/sites\/[0-9a-f-]{36}\/(?:assistant|agents|rehearsal)$/i;
 export function guestMayRequest(method: string | null, path: string | null): boolean {
   const verb = (method || '').toUpperCase();
   if (verb === 'GET' || verb === 'HEAD') return true;
