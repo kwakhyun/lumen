@@ -13,7 +13,6 @@ const clamp = (value: number) => Math.min(1, Math.max(0, value));
  * - `[data-count]`   counts up to its number once when scrolled into view
  * - `[data-tilt]`    gets `--tilt` (0 to 1) as it rises into the viewport
  * - `[data-words]`   lights its `[data-w]` children one by one while scrolling past
- * - `[data-line]`    gets `--line` (0 to 1) as the viewport centre passes through it
  * - `[data-glow]`    gets `--gx` / `--gy`, the pointer position inside the card
  */
 export function LandingMotion() {
@@ -24,7 +23,7 @@ export function LandingMotion() {
     const cleanups: Array<() => void> = [];
     const all = <T extends HTMLElement>(selector: string) => Array.from(root.querySelectorAll<T>(selector));
 
-    const tilts = all("[data-tilt]"), lines = all("[data-line]");
+    const tilts = all("[data-tilt]");
     const wordBlocks = all("[data-words]").map(block => ({ block, words: Array.from(block.querySelectorAll<HTMLElement>("[data-w]")) }));
     let frame = 0;
     const update = () => {
@@ -42,10 +41,6 @@ export function LandingMotion() {
         const box = block.getBoundingClientRect();
         const lit = Math.round(clamp((viewport * 0.86 - box.top) / (box.height + viewport * 0.42)) * words.length);
         words.forEach((word, index) => word.toggleAttribute("data-lit", index < lit));
-      }
-      for (const element of lines) {
-        const box = element.getBoundingClientRect();
-        element.style.setProperty("--line", clamp((viewport * 0.56 - box.top) / box.height).toFixed(3));
       }
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };

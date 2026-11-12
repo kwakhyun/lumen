@@ -37,7 +37,6 @@ const structuredData = {
       '@id': `${siteUrl}/#lumen`,
       name: 'Lumen',
       url: `${siteUrl}/`,
-      sameAs: 'https://github.com/kwakhyun/lumen',
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
       inLanguage: 'ko',
@@ -286,7 +285,7 @@ export default async function Home() {
           <p>브랜드와 질문을 등록한 뒤 원할 때 답변 수집을 시작할 수 있어요. GA4나 다른 서비스 연결은 필요하지 않아요.</p>
           <a className="hm-btn primary" href="/dashboard?start=1">내 브랜드 등록하기<ArrowRight size={18} /></a>
         </div>
-        <ol className="hm-steps" data-line>
+        <ol className="hm-steps">
           {steps.map(([title, copy], index) => <li key={title} data-reveal><span>{String(index + 1).padStart(2, '0')}</span><div><h3>{title}</h3><p>{copy}</p></div></li>)}
         </ol>
       </div>
@@ -341,7 +340,7 @@ export default async function Home() {
         <p>AI 답변으로 살펴보는 우리 브랜드</p>
       </div>
       <div className="hm-footer-links">
-        <a href="/guides/free-ai-brand-tracking">무료 추적 가이드</a><a href="/methodology">측정 방법</a><a href="/privacy">개인정보 처리 안내</a><a href="/terms">이용 안내</a><a href="mailto:khyun9685@gmail.com">문의</a><a href="https://github.com/kwakhyun/lumen">GitHub</a><AnalyticsConsent/>
+        <a href="/guides/free-ai-brand-tracking">무료 추적 가이드</a><a href="/methodology">측정 방법</a><a href="/privacy">개인정보 처리 안내</a><a href="/terms">이용 안내</a><a href="mailto:khyun9685@gmail.com">문의</a><AnalyticsConsent/>
       </div>
       <small className="hm-operator">운영자 곽현 · 지원 <a href="mailto:khyun9685@gmail.com">khyun9685@gmail.com</a> · © {new Date().getFullYear()} Lumen</small>
     </footer>
