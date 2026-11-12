@@ -20,10 +20,10 @@ export function AnalyticsConsent() {
   }, []);
   function choose(value: Consent) {
     try { window.localStorage.setItem(CONSENT_KEY, serializeConsent(value)); setStorageUnavailable(false); } catch { setStorageUnavailable(true); }
-    setChoice(value); controller.current?.apply(value); setOpen(false); trigger.current?.focus();
+    setChoice(value); controller.current?.apply(value); setOpen(false); trigger.current?.focus({ preventScroll: true });
   }
   return <><button ref={trigger} type="button" className="analytics-preferences" onClick={() => setOpen(true)} aria-expanded={open} aria-controls="analytics-consent-panel">방문 통계 설정</button>{open && <section id="analytics-consent-panel" className="analytics-consent" role="dialog" aria-labelledby="analytics-consent-title" aria-describedby="analytics-consent-description">
-    <div className="analytics-consent-heading"><h2 id="analytics-consent-title">방문 통계 수집을 허용할까요?</h2><button type="button" className="analytics-close" aria-label="설정 닫기" onClick={() => { setOpen(false); trigger.current?.focus(); }}>×</button></div>
+    <div className="analytics-consent-heading"><h2 id="analytics-consent-title">방문 통계 수집을 허용할까요?</h2><button type="button" className="analytics-close" aria-label="설정 닫기" onClick={() => { setOpen(false); trigger.current?.focus({ preventScroll: true }); }}>×</button></div>
     <p id="analytics-consent-description">허용하면 Google Analytics가 쿠키를 사용해 소개 페이지의 방문 수, 유입 도메인과 브라우저 기본 정보를 분석해요. 대시보드, 질문, 답변과 계정 정보는 보내지 않아요. 거절해도 모든 기능을 이용할 수 있어요. <a href="/privacy#landing-analytics">수집 정보 확인</a></p>
     <p className="analytics-consent-note">{!eligible ? '로컬 환경이나 통계 수집이 허용되지 않은 미리보기에서는 방문 정보를 전송하지 않아요.' : choice === 'granted' ? '지금은 방문 통계 수집을 허용하고 있어요. 언제든 아래에서 바꿀 수 있어요.' : choice === 'denied' ? '지금은 방문 통계 수집을 허용하지 않아 정보를 전송하지 않아요.' : '허용하기 전에는 Google Analytics를 실행하지 않아요.'}{storageUnavailable && ' 브라우저에서 설정을 저장할 수 없어 이 페이지에서만 선택이 적용돼요.'}</p>
     <div className="analytics-consent-actions"><button type="button" onClick={() => choose('denied')}>허용하지 않기</button><button type="button" onClick={() => choose('granted')}>방문 통계 허용</button></div>
