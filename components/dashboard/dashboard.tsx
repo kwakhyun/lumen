@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Clapperboard, Activity, ArrowDownToLine, ArrowRight, ArrowUpRight, BarChart3, BookOpen, Bot, Cable, CalendarDays, Check, CheckCircle2, Compass, Copy, FileText, FlaskConical, Gauge, Globe2, House, Info, Link2, LogIn, LogOut, Menu, MessageCircle, MessagesSquare, Moon, PanelTop, Pencil, Play, Plus, Radio, RefreshCw, Search, Settings2, ShieldCheck, Sparkles, Sun, Trash2, TrendingUp, Users, Workflow, X } from "lucide-react";
+import { MessageSquareQuote, Clapperboard, Activity, ArrowDownToLine, ArrowRight, ArrowUpRight, BarChart3, BookOpen, Bot, Cable, CalendarDays, Check, CheckCircle2, Compass, Copy, FileText, FlaskConical, Gauge, Globe2, House, Info, Link2, LogIn, LogOut, Menu, MessageCircle, MessagesSquare, Moon, PanelTop, Pencil, Play, Plus, Radio, RefreshCw, Search, Settings2, ShieldCheck, Sparkles, Sun, Trash2, TrendingUp, Users, Workflow, X } from "lucide-react";
 import { dashboardHref, filterDashboardAnswers, type DashboardScope } from "@/lib/dashboard-scope";
 import { summarizePromptEvidence } from "@/lib/prompt-opportunities";
 import { computeMetrics, measuredCitations } from "@/lib/metrics";
@@ -32,6 +32,7 @@ import { hasOnlyUngroundedAnswers, providerLabel } from "./measurement";
 import { useAiEligibility } from "./eligibility";
 import Assistant from "./sections/assistant";
 import Rehearsal from "./sections/rehearsal";
+import Voice from "./sections/voice";
 import { savedAnalysisLabel } from "./analysis-scope";
 import MarkdownContent from "./markdown";
 import { LumenMark } from "@/components/lumen-mark";
@@ -42,7 +43,7 @@ import { Badge, Button, Empty, ExportButton, Modal, Panel, Skeleton, TrendChart,
 type NavItem = { id: string; title: string; icon: typeof Activity };
 const navGroups: { label: string; items: NavItem[] }[] = [
   { label: "", items: [{ id: "overview", title: "홈", icon: House }, { id: "agents", title: "에이전트", icon: Sparkles }] },
-  { label: "분석", items: [{ id: "visibility", title: "가시성", icon: Activity }, { id: "prompts", title: "질문과 답변", icon: Search }, { id: "competitors", title: "경쟁사", icon: Users }, { id: "sources", title: "인용 출처", icon: Link2 }, { id: "models", title: "모델별 결과", icon: Bot }] },
+  { label: "분석", items: [{ id: "visibility", title: "가시성", icon: Activity }, { id: "prompts", title: "질문과 답변", icon: Search }, { id: "competitors", title: "경쟁사", icon: Users }, { id: "sources", title: "인용 출처", icon: Link2 }, { id: "models", title: "모델별 결과", icon: Bot }, { id: "voice", title: "고객의 목소리", icon: MessageSquareQuote }] },
   { label: "실행", items: [{ id: "actions", title: "개선 작업", icon: FlaskConical }, { id: "content", title: "콘텐츠와 리포트", icon: FileText }, { id: "rehearsal", title: "콘텐츠 리허설", icon: Clapperboard }, { id: "impact", title: "전후 검증", icon: TrendingUp }] },
   { label: "설정", items: [{ id: "automations", title: "자동 수집", icon: Workflow }, { id: "connections", title: "연결", icon: Cable }, { id: "security", title: "웹사이트 점검", icon: Globe2 }, { id: "settings", title: "브랜드 설정", icon: Settings2 }] },
 ];
@@ -71,6 +72,7 @@ const pageMeta: Record<string, { title: string; description: string }> = {
   actions: { title: "개선 작업", description: "개선할 일을 기록하고, 같은 조건으로 수집한 답변을 전후 비교하세요." },
   content: { title: "콘텐츠", description: "수집한 답변과 브랜드 정보를 바탕으로 만든 콘텐츠 초안이에요." },
   reports: { title: "리포트", description: "수집 결과와 개선할 내용을 정리한 리포트예요." },
+  voice: { title: "고객의 목소리", description: "리뷰와 문의에서 만족, 불만, 불안의 이유를 찾고 AI 답변에서 측정할 질문으로 바꾸세요." },
   rehearsal: { title: "콘텐츠 리허설", description: "게시하기 전에, AI가 이 초안을 읽으면 같은 질문의 답변이 어떻게 달라지는지 미리 확인하세요." },
   impact: { title: "전후 검증", description: "실제 AI 검색에서 확인한 답변과 방문, 구매 자료를 기록해 콘텐츠 변경 전후를 비교하세요." },
   automations: { title: "자동 수집", description: "답변을 수집할 질문과 주기를 정하고 예약된 수집의 진행 상태를 확인하세요." },
@@ -259,6 +261,7 @@ export default function Dashboard({ user, initialSection = "overview", initialSc
           {metrics && section === "models" && <Models state={state} answers={filteredHistory} />}
           {section === "personas" && <Personas state={state} onAdd={() => openForm("persona")} onEdit={p => openForm("persona", p)} onDelete={p => remove({ type: "personas", id: p.id, title: p.name })} onUse={p => { if (!blocked()) eligibility.request(async () => { try { await mutate(`/api/sites/${siteId}/prompts/generate`, "POST", { personaId: p.id, count: 3 }, "페르소나 관점의 질문 3개를 생성했어요"); navigate("prompts"); } catch {} }); }} busy={busy} />}
           {(section === "content" || section === "reports") && <Documents documents={state.documents.filter(d => d.kind === (section === "content" ? "content" : "report"))} kind={section === "content" ? "content" : "report"} onOpen={setDocument} onCreate={() => openForm(section === "content" ? "content" : "report")} onAgent={() => navigate("agents")} />}
+          {section === "voice" && <Voice key={siteId} siteId={siteId} state={state} requestAI={eligibility.request} readOnly={guest} onUsed={refreshUsage} onAddQuestion={async text => { if (blocked()) return false; try { await api(`/api/sites/${siteId}/prompts`, "POST", { text, topic: "고객의 목소리", intent: "informational" }); await refresh(); flash("질문을 추적 목록에 추가했어요."); return true; } catch (cause) { setError((cause as Error).message); return false; } }} />}
           {section === "rehearsal" && <Rehearsal key={siteId} siteId={siteId} state={state} requestAI={eligibility.request} onUsed={refreshUsage} />}
           {section === "impact" && <Impact key={siteId} state={state} />}
           {section === "actions" && <div className="d-stack"><Actions tasks={state.tasks} onEdit={t => openForm("task", t)} onStatus={handleTaskStatus} onDelete={t => remove({ type: "tasks", id: t.id, title: t.title })} onAdd={() => openForm("task")} /><Experiments key={siteId} state={state} /></div>}
